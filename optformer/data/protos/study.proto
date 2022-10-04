@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package optformer;
+
+import "vizier/service/pythia_service.proto";
+import "vizier/service/study.proto";
+
+message ProblemAndTrials {
+  vizier.ProblemStatement problem = 1;
+  repeated vizier.Trial trials = 2;
+}
