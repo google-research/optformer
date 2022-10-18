@@ -40,22 +40,22 @@ from t5x import optimizers
 MetricsMap = models.MetricsMap
 PyTreeDef = models.PyTreeDef
 DecodeFnCallable = models.DecodeFnCallable
+DecodingState = vizier_decoding.SamplingLoopState
 _NoValueSentinel = object()
 
 
-def logit_mask_callback_fn(
-    logits: jnp.ndarray,
-    current_idx: int,
-    logits_mask: jnp.ndarray,
-    beam_size: int = 0,
-    flatten_batch_dim: bool = False) -> jnp.ndarray:
+def logit_mask_callback_fn(logits: jnp.ndarray,
+                           state: DecodingState,
+                           logits_mask: jnp.ndarray,
+                           beam_size: int = 0,
+                           flatten_batch_dim: bool = False) -> jnp.ndarray:
   """Apply a mask to the given index of the provided logits.
 
   Args:
     logits: [batch_size, vocabulary_size] array of the predicted logits if
       flatten_dim is true, else we have [batch_size, beam_size, vocabulary_size]
       as the array dimensions.
-    current_idx: the logit sequence index to apply the mask to
+    state: decoding loop state.
     logits_mask: [batch_size, sequence_len, vocabulary_size] array with -inf at
       positions to be masked out.
     beam_size: size of number of decode samples.
@@ -63,7 +63,11 @@ def logit_mask_callback_fn(
   Returns:
     Masked logits whose shape depends on the shape of logits as described above.
   """
-  cur_step_mask = logits_mask[:, None, current_idx, :]
+  # The logit sequence index to apply the mask to.
+  current_idx = state.mask_idx
+
+  cur_step_mask = jnp.asarray(
+      logits_mask[:, None, current_idx, :], dtype=logits.dtype)
   cur_step_mask = jnp.repeat(cur_step_mask, beam_size, axis=1)
   if flatten_batch_dim:
     cur_step_mask = jnp.reshape(cur_step_mask, (-1, cur_step_mask.shape[-1]))

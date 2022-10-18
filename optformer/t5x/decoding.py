@@ -26,6 +26,7 @@ from jax import lax
 from jax import random
 import jax.numpy as jnp
 import numpy as np
+from t5x import binary_search
 from t5x import decoding
 
 DecodingState = decoding.DecodingState
@@ -51,7 +52,7 @@ class SamplingLoopState:
   Attributes:
     cur_index: [batch_size] array position of the sampling loop in the length
       dimension.
-    sequences: [batch_size, num_decodes, max_decode_len] array of current
+    sequences: [batch_size * num_decodes, max_decode_len] array of current
       sampled sequence prefixes.
     cache: any mapping of arrays, e.g. flax attention cache.
     cur_token: [batch_size, num_decodes] single timestep slice containing
@@ -84,7 +85,7 @@ def temperature_sample(
     decode_rng: Optional[jnp.ndarray] = None,
     num_decodes: int = 1,
     temperature: Union[float, jnp.ndarray] = 1.0,
-    topk: int = 0,
+    topk: int = 1,
     topp: float = 0.0,
     cache_offset: int = 0,
     initial_index: Optional[jnp.ndarray] = None,
@@ -316,14 +317,22 @@ def temperature_sample(
     max_decode_steps = jnp.minimum(max_decode_steps,
                                    max_decode_steps_hard_limit)
 
-  # [batch, len] -> [batch * num_decodes, len]
-  expanded_inputs = flat_batch_beam_expand(inputs, num_decodes)
-  expanded_cache = cache_map(
-      functools.partial(
-          flat_batch_beam_expand, beam_size=num_decodes, offset=cache_offset),
-      cache)
-  if initial_index is not None:
-    initial_index = flat_batch_beam_expand(initial_index, num_decodes)
+  if num_decodes > 1:
+    # [batch, len] -> [batch * num_decodes, len]
+    expanded_inputs = flat_batch_beam_expand(inputs, num_decodes)
+    expanded_cache = cache_map(
+        functools.partial(
+            flat_batch_beam_expand, beam_size=num_decodes, offset=cache_offset),
+        cache,
+        # When we start with a prefilled cache, the cache index is no longer a
+        # scalar that will broadcast across multiple decodes, it is a vector and
+        # needs to be updated to handle the multiple decodes.
+        apply_to_index=initial_index is not None)
+    if initial_index is not None:
+      initial_index = flat_batch_beam_expand(initial_index, num_decodes)
+  else:
+    expanded_inputs = inputs
+    expanded_cache = cache
 
   # expanded_decodes: [batch * num_decodes, len]
   # expanded_log_prob: [batch * num_decodes]
@@ -403,7 +412,8 @@ def _temperature_sample_single_trial(
     #   Since sequences[:, 0] is BOS token, the generated token is
     #   `max_decode_len[j]`th non-padding tokens and hence `j`th element is
     #   ended.
-    max_decode_len = jnp.sum(inputs != 0, axis=1) + max_decode_steps
+    max_decode_len = (jnp.sum(inputs != 0, axis=1) + max_decode_steps).astype(
+        jnp.int32)
     max_decode_len = jnp.minimum(inputs.shape[1], max_decode_len)
 
   if decode_until is None:
@@ -487,30 +497,18 @@ def _temperature_sample_single_trial(
     # Sample next token from logits.
 
     if logit_callback_fn is not None:
-      logits = logit_callback_fn(logits, state.mask_idx)
+      logits = logit_callback_fn(logits, state)
 
     def sample_logits_with_nonzero_temperature(logits):
-      scaled_logits = logits / jnp.maximum(temperature, MIN_TEMPERATURE)
+      scaled_logits = logits / jnp.maximum(temperature, MIN_TEMPERATURE).astype(
+          jnp.float32)
       if topk:
-        # Get top-k logits and their indices, sample within these top-k tokens.
-        topk_logits, _ = lax.top_k(scaled_logits, topk)
-        cutoff_logit = topk_logits[:, -1, None]
-        scaled_logits = jnp.where(scaled_logits < cutoff_logit,
-                                  jnp.full_like(scaled_logits, NEG_INF),
-                                  scaled_logits)
+        scaled_logits = binary_search.topk_mask(scaled_logits, topk, NEG_INF)
 
       # When topp is dynamic, we always use it since we cannot check
       # non-zeroness (but it will have no effect if topp is 0.0).
       if _is_tracer(topp) or topp:
-        logits_sorted = jnp.sort(
-            scaled_logits, axis=-1)[:, ::-1]  # sort descending
-        sorted_cum_probs = jnp.cumsum(
-            jax.nn.softmax(logits_sorted, axis=-1), axis=-1)
-        cutoff_index = jnp.sum(sorted_cum_probs < topp, axis=-1, keepdims=True)
-        cutoff_logit = jnp.take_along_axis(logits_sorted, cutoff_index, axis=-1)
-        scaled_logits = jnp.where(scaled_logits < cutoff_logit,
-                                  jnp.full_like(scaled_logits, NEG_INF),
-                                  scaled_logits)
+        scaled_logits = binary_search.topp_mask(scaled_logits, topp, NEG_INF)
 
       # [batch]
       next_token = random.categorical(rng1, scaled_logits).astype(jnp.int32)
@@ -638,12 +636,13 @@ def _temperature_sample_single_trial(
 # Beam handling utility functions:
 
 
-def cache_map(fn, cache: Any) -> Mapping[str, jnp.ndarray]:
+def cache_map(fn, cache, apply_to_index: bool = False):
   """Maps function over that caches, even multiple caches in various layers.
 
   Args:
     fn: The function to apply.
     cache: The cache to apply it to.
+    apply_to_index: Whether to apply the function to the cache index.
 
   Returns:
     The result of applying `fn` to the cache.
@@ -652,7 +651,10 @@ def cache_map(fn, cache: Any) -> Mapping[str, jnp.ndarray]:
   if frozen:
     cache = flax.core.unfreeze(cache)
   flat_cache = traverse_util.flatten_dict(cache)
-  keyvals = {k: v for k, v in flat_cache.items() if k[-1] != 'cache_index'}
+  if apply_to_index:
+    keyvals = flat_cache
+  else:
+    keyvals = {k: v for k, v in flat_cache.items() if k[-1] != 'cache_index'}
   # Exclude cached relative position bias from beam expansion, etc.
   # Also excludes scalar index in absolute position embedder from expansion.
   # TODO: generalize cache_map to accept a list of leaf names to

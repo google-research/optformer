@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Converts Study protos into various text formats."""
+"""Converts Study into various text formats."""
 import abc
 import enum
 import json
@@ -61,6 +61,8 @@ _MINIMUM_CONFIG_PROBABILITY = {
     'default': 0.1,
 }
 
+METADATA_ALGORITHM_KEY = 'algorithm'
+
 
 class ConvertedStudy(NamedTuple):
   inputs: str  # Conditioning inputs.
@@ -77,7 +79,7 @@ class ConvertedStudy(NamedTuple):
 def get_algorithm(problem: vz.ProblemStatement,
                   default_algorithm: str = '') -> AlgorithmInfo:
   """Searches problem statement metadata for 'algorithm' key."""
-  return problem.metadata.get('algorithm', default=default_algorithm)
+  return problem.metadata.get(METADATA_ALGORITHM_KEY, default=default_algorithm)
 
 
 def bbob_study_name_filter(study: Study, name_list: List[str]) -> bool:

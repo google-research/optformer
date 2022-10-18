@@ -43,8 +43,7 @@ class ConvertersTest(absltest.TestCase):
       trial.complete(vz.Measurement(metrics={metric_name: float(i)}))
       trials.append(trial)
 
-    self.example_flat_study = vz.ProblemAndTrials(
-        problem=problem, trials=trials)
+    self.example_flat_study = converters.Study(problem=problem, trials=trials)
     # Configuration overrdies:
     # min_trials = 0: allows a small test study
     # randomize_parameter_order = False: fix the parameter order in test.

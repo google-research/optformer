@@ -46,6 +46,7 @@ from vizier import pyvizier as vz
 
 Aux = converters.Aux
 Batch = Mapping[str, jnp.ndarray]
+Study = converters.Study
 
 OPTFORMER_STUDY_CONVERTER_KWARGS = {
     'objective_range_after_norm': (0.2, 0.8),
@@ -60,7 +61,6 @@ OPTFORMER_STUDY_CONVERTER_KWARGS = {
 }
 
 DEFAULT_GIN_SEARCH_PATHS = (
-    'optformer/t5x/configs',
 )
 
 _DEFAULT_GIN_PATTERNS_TO_SKIP = [
@@ -89,7 +89,7 @@ def config_from_model_dir(model_dir: str,
   """Modify the config file in a model dir and write it to a local copy."""
   config_file = os.path.join(model_dir, 'config.gin')
 
-  with gfile.Open(config_file, 'r') as f:
+  with gfile.GFile(config_file, 'r') as f:
     config_str = f.read()
 
   # Remove ending "\\" in commented lines.
@@ -234,6 +234,18 @@ def default_study_converter_kwargs(study_converter):
   return study_converter_kwargs
 
 
+def infer_special_tokens(vocab: seqio.Vocabulary) -> Tuple[int, int]:
+  """Infer the tokens for "*" and "|" from the vocabulary."""
+  tokens = vocab.encode('a*c|d')
+  special_tokens = (tokens[-4], tokens[-2])
+  decoded_special_str = vocab.decode(special_tokens)
+  if decoded_special_str != '*|':
+    raise ValueError(
+        f'Inferred tokens for "*" ({special_tokens[0]}) and "|" '
+        f'({special_tokens[1]}) are decoded to "{decoded_special_str}".')
+  return special_tokens
+
+
 class InferenceModel(object):
   """Simple wrapper to load pretrained model and run prediction."""
   infer_task_count: int = 0
@@ -368,7 +380,8 @@ class InferenceModel(object):
         'MODEL_DIR = "/tmp/t5x"',
         'RETURN_ALL_DECODES = True',
         f'CHECKPOINT_PATH = "{checkpoint_path}"',
-        f'STEP_OFFSET = {checkpoint_step}'
+        f'STEP_OFFSET = {checkpoint_step}',
+        'TOPK = 0',  # Disable truncated sampling.
     ])
     logging.info('Model config will be overridden by the following bindings'
                  ':\n%s', overwrite_gin_bindings)
@@ -483,8 +496,7 @@ class InferenceModel(object):
         task_name=task_name)
     return dataset_builder
 
-  def get_dataset(self,
-                  study_list: Sequence[vz.ProblemAndTrials]) -> tf.data.Dataset:
+  def get_dataset(self, study_list: Sequence[Study]) -> tf.data.Dataset:
     """Create a dataset from a list of studies."""
     return self._dataset_builder.dataset(study_list)
 
@@ -548,7 +560,7 @@ class InferenceModel(object):
 
   def compute_logits(
       self,
-      study_list: Sequence[vz.ProblemAndTrials],
+      study_list: Sequence[Study],
       trial_list: Optional[Sequence[vz.TrialSuggestion]] = None,
       restrict_vocab_index: bool = True,
   ) -> Tuple[jnp.ndarray, List[Batch], List[Aux]]:
@@ -596,7 +608,7 @@ class InferenceModel(object):
 
   def compute_log_probs(
       self,
-      study_list: Sequence[vz.ProblemAndTrials],
+      study_list: Sequence[Study],
       restrict_vocab_index: bool = True,
   ) -> Tuple[jnp.ndarray, List[Batch], List[Aux]]:
     """Compute log probability, with an optionally restricted vocabulary."""
@@ -605,7 +617,7 @@ class InferenceModel(object):
     return logits_to_log_probs(logits), batches, aux_list
 
   def predict_fun_logits(self,
-                         study_list: Sequence[vz.ProblemAndTrials],
+                         study_list: Sequence[Study],
                          trial_list: Sequence[vz.TrialSuggestion],
                          restrict_vocab_index: bool = True) -> jnp.ndarray:
     """Predict the function distribution of a trial given a study.
@@ -635,12 +647,10 @@ class InferenceModel(object):
         logits_seq, jnp.array(f_indices)[:, None, None], axis=1)[:, 1]  # S, V.
     return f_logits
 
-  def pad_study(
-      self,
-      study: vz.ProblemAndTrials,
-      min_trials: int,
-      trial_to_append: Optional[vz.TrialSuggestion] = None
-  ) -> vz.ProblemAndTrials:
+  def pad_study(self,
+                study: Study,
+                min_trials: int,
+                trial_to_append: Optional[vz.TrialSuggestion] = None) -> Study:
     """Pad study trials upto min_trials with trial_to_append if provided."""
     # The objective value in the trial_to_append is ignored.
     num_trials_to_append = min_trials - len(study.trials)
@@ -654,7 +664,7 @@ class InferenceModel(object):
       study.trials.extend([trial_to_append] * num_trials_to_append)
     return study
 
-  def _dummy_trial(self, study: vz.ProblemAndTrials) -> vz.Trial:
+  def _dummy_trial(self, study: Study) -> vz.Trial:
     """Make a trial with dummy parameter and function values."""
     trial = vz.Trial()
     for pc in study.problem.search_space.parameters:
@@ -666,7 +676,7 @@ class InferenceModel(object):
     trial = self._set_dummy_fun_value(study, trial)
     return trial
 
-  def _set_dummy_fun_value(self, study: vz.ProblemAndTrials,
+  def _set_dummy_fun_value(self, study: Study,
                            trial: vz.TrialSuggestion) -> vz.Trial:
     """Set a dummy function value that does not affect normalization."""
     if len(study.problem.metric_information) != 1:
@@ -739,8 +749,7 @@ class InferenceModel(object):
     batch = dict(batch)
 
     # Setup the special tokens
-    special_tokens = self.vocab.encode('a*c|d')
-    special_tokens = [special_tokens[1], special_tokens[3]]
+    special_tokens = infer_special_tokens(self.vocab)
 
     # Setup for decoding for multiple timesteps
     batch_size, seq_length = batch['decoder_input_tokens'].shape
@@ -956,7 +965,7 @@ class InferenceModel(object):
 
   def sample_parameters_of_next_trials(
       self,
-      study_list: Sequence[vz.ProblemAndTrials],
+      study_list: Sequence[Study],
       num_trials: int = 1,
       num_samples: int = 1,
       decoder_params: Optional[MutableMapping[str, Any]] = None,
@@ -973,7 +982,7 @@ class InferenceModel(object):
 
   def sample_parameters_in_trials(
       self,
-      study_list: Sequence[vz.ProblemAndTrials],
+      study_list: Sequence[Study],
       trial_indices: Sequence[int],
       num_trials: int = 1,
       decoder_params: Optional[MutableMapping[str, Any]] = None,

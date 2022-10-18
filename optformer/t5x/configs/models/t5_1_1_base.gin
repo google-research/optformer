@@ -48,7 +48,7 @@ partitioning.PjitPartitioner:
   model_parallel_submesh = %MODEL_PARALLEL_SUBMESH
 
 # Sample
-TOPK = 40
+TOPK = 0  # Do not truncate the predictive distribution.
 TEMPERATURE = 1.0
 MAX_DECODE_STEPS = None
 vizier_decoding.temperature_sample:

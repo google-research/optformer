@@ -10,12 +10,14 @@ All dependencies can be installed in `requirements.txt`. The two main components
 To use our pre-trained OptFormer (exactly as-is from the paper), follow the steps:
 
 1. Download the model checkpoint from [TODO].
-2. Load the model checkpoint into the `InferenceModel`, as shown in [policies_test.py](TODO).
+2. Load the model checkpoint into the `InferenceModel`, as shown in [policies_test.py](https://github.com/google-research/optformer/blob/main/optformer/t5x/policies.py).
 
 The `InferenceModel` will then be wrapped into the `OptFormerDesigner`, which follows the same API as a OSS Vizier standard [`Designer`](https://oss-vizier.readthedocs.io/en/latest/guides/developer/writing_algorithms.html).
 
 ## Training the OptFormer (Coming Soon!)
-TODO
+**Work in Progress**
 
+## Benchmark Results (Coming Soon!)
+**Work in Progress**
 
 **Disclaimer:** This is not an officially supported Google product.

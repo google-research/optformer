@@ -45,6 +45,7 @@ DEFAULT_RANKING_CONFIG = {
 }
 
 ConfigDict = Union[Dict[str, Any], ml_collections.ConfigDict]
+Study = converters.Study
 
 
 @enum.unique
@@ -124,8 +125,9 @@ class OptFormerDesigner(vza.Designer):
 
     if designer_name:
       # TODO: please check if this is the intended way of writing metadata.
-      self._study_config.metadata['designer'] = designer_name
-    self._historical_study: vz.ProblemAndTrials = vz.ProblemAndTrials(
+      self._study_config.metadata[
+          converters.METADATA_ALGORITHM_KEY] = designer_name
+    self._historical_study: converters.Study = Study(
         problem=self._study_config, trials=[])
 
     self._decoder_params = {'temperature': temperature}
@@ -179,7 +181,7 @@ class OptFormerDesigner(vza.Designer):
       The corresponding dict of feature sequences for the transformer model.
       Study converter auxiliary output dict.
     """
-    study = vz.ProblemAndTrials(
+    study = Study(
         problem=self._historical_study.problem,
         trials=self._historical_study.trials)
 

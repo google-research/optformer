@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Language modeling on vizier trials."""
+"""Language modeling on vizier studies."""
 import functools
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Sequence
 
@@ -23,9 +23,8 @@ from optformer.t5x import vocabularies
 import seqio
 import t5.data
 import tensorflow as tf
-from vizier import pyvizier as vz
 
-Study = vz.ProblemAndTrials
+Study = converters.Study
 
 VOCAB_CC_ALL_100EXTRA_MODEL_FILE = 'gs://t5-data/vocabs/cc_all.32000.100extra/sentencepiece.model'
 VOCAB_CC_ALL_100EXTRA_SIZE_WITHOUT_INT = 32100
