@@ -22,6 +22,7 @@ from absl.testing import absltest
 
 class PoliciesTest(absltest.TestCase):
 
+  @absltest.skip("Checkpoint must be installed manually.")
   def test_e2e(self):
     experimenter = benchmarks.IsingExperimenter(lamda=0.01)
 

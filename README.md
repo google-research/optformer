@@ -20,4 +20,27 @@ The `InferenceModel` will then be wrapped into the `OptFormerDesigner`, which fo
 ## Benchmark Results (Coming Soon!)
 **Work in Progress**
 
+# Citation
+If you found this codebase useful, please consider citing our paper. Thanks!
+
+```
+@inproceedings{optformer,
+  author    = {Yutian Chen and
+               Xingyou Song and
+               Chansoo Lee and
+               Zi Wang and
+               Qiuyi Zhang and
+               David Dohan and
+               Kazuya Kawakami and
+               Greg Kochanski and
+               Arnaud Doucet and
+               Marc'Aurelio Ranzato and
+               Sagi Perel and
+               Nando de Freitas},
+  title     = {Towards Learning Universal Hyperparameter Optimizers with Transformers},
+  booktitle = {Neural Information Processing Systems (NeurIPS) 2022},
+  year      = {2022}
+}
+```
+
 **Disclaimer:** This is not an officially supported Google product.
