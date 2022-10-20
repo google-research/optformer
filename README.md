@@ -2,7 +2,7 @@
 This is the code used for the paper [Towards Learning Universal Hyperparameter Optimizers with Transformers (NeurIPS 2022)](https://arxiv.org/abs/2205.13320).
 
 # Installation
-All dependencies can be installed in `requirements.txt`. The two main components are [T5X](https://github.com/google-research/t5x) and [OSS Vizier](https://github.com/google/vizier).
+All base dependencies can be installed from `requirements.txt`. Afterwards, the two core packages that must be manually installed are [T5X](https://github.com/google-research/t5x) and [OSS Vizier](https://github.com/google/vizier).
 
 # Usage
 

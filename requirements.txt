@@ -1,5 +1,4 @@
-google-vizier  # Always compatible with most up-to-date version.
-https://github.com/google-research/t5x/archive/master.zip  # Always compatible with most up to date version.
+# T5X prerequisite.
 seqio  # Always compatible with most up-to-date version.
 
 # Autodiff and numerical packages.
@@ -14,9 +13,8 @@ typing  # Version dependent on Python version.
 pytest  # Use the latest version to match github workflow.
 absl-py>=1.0.0
 
-# Tidy
+# Experiment configuration utilities.
 ml-collections==0.1.1
 
 # Proto
 protobuf>=3.6,<4.0
-
