@@ -14,13 +14,12 @@
 
 # Register necessary SeqIO Tasks/Mixtures.
 #
-# Configuration for models trained on the BBOB dataset with all HPO algorithms.
+# Configuration for models trained on the HPO-B dataset with all HPO algorithms.
 # Quantization Q = 1000
 # Random objective range augmentation.
-# Minimum configuration in meta data.
 #
-# inputs length = 256
-# targets lengths = 2048
+# inputs length = 512
+# targets lengths = 1024
 # max_trials = 200
 
 from __gin__ import dynamic_registration
@@ -32,9 +31,9 @@ from optformer.data import tasks as t5_tasks
 include 'optformer/t5x/configs/models/t5_1_1_base.gin'
 
 
-TARGET_LENGTHS = 2048
+TARGET_LENGTHS = 1024
 TASK_FEATURE_LENGTHS = {
-    'inputs': 256,
+    'inputs': 512,  # Maximum input seq after tokenizatio is 312.
     'targets': %TARGET_LENGTHS,
     'target_inputs': %TARGET_LENGTHS,
     'targets_types': %TARGET_LENGTHS,
@@ -65,5 +64,5 @@ converters.OptFormerConverter:
   rand_objective_scale_range = (0.3, 1.0)
   max_trials = 200
   num_initial_tokens = %NUM_INITIAL_TOKENS
-  minimum_config = True  # Always minimum_config
+  minimum_config = False  # Always use all metadata in the HPO-B transfer setting.
   minimum_config_per_study = False

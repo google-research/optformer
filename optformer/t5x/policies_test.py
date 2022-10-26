@@ -27,7 +27,7 @@ class PoliciesTest(absltest.TestCase):
     experimenter = benchmarks.IsingExperimenter(lamda=0.01)
 
     inference_model = inference_utils.InferenceModel.from_checkpoint(
-        **policies.DEFAULT_INFERENCE_MODEL_KWARGS)
+        **policies.BBOB_INFERENCE_MODEL_KWARGS)
     designer = policies.OptFormerDesigner(
         experimenter.problem_statement(), inference_model=inference_model)
 

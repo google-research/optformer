@@ -30,13 +30,21 @@ from vizier import algorithms as vza
 from vizier import pyvizier as vz
 
 # Default arguments to create an inference_model for the Transformer designer.
-DEFAULT_INFERENCE_MODEL_KWARGS = {
+BBOB_INFERENCE_MODEL_KWARGS = {
     'checkpoint_path_or_model_dir':
-        model_dir
+        'bbob_model_dir',
     'model_gin_file':
         'optformer/t5x/configs/bbob.gin',
     'batch_size':
-        32,  # Maximum batch size to fit in a GPU worker.
+        1,
+}
+HPOB_INFERENCE_MODEL_KWARGS = {
+    'checkpoint_path_or_model_dir':
+        'hpob_model_dir',
+    'model_gin_file':
+        'optformer/t5x/configs/hpob.gin',
+    'batch_size':
+        1,
 }
 DEFAULT_DESIGNER_NAME = 'designer_recursive_gp'
 DEFAULT_RANKING_CONFIG = {
@@ -124,7 +132,6 @@ class OptFormerDesigner(vza.Designer):
       self._metric_flipped = True
 
     if designer_name:
-      # TODO: please check if this is the intended way of writing metadata.
       self._study_config.metadata[
           converters.METADATA_ALGORITHM_KEY] = designer_name
     self._historical_study: converters.Study = Study(
