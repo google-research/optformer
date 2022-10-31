@@ -1,6 +1,12 @@
 # T5X prerequisite.
 seqio  # Always compatible with most up-to-date version.
 
+# OSS Vizier
+google-vizier # Use latest version.
+
+# Proto
+protobuf>=3.6,<4.0
+
 # Autodiff and numerical packages.
 numpy>=1.21.5
 tensorflow>=2.9.1
@@ -16,5 +22,4 @@ absl-py>=1.0.0
 # Experiment configuration utilities.
 ml-collections==0.1.1
 
-# Proto
-protobuf>=3.6,<4.0
+
