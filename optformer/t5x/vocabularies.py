@@ -19,8 +19,8 @@ from absl import logging
 import t5.data
 import tensorflow as tf
 
-from sentencepiece.src import sentencepiece_model_pb2
-from sentencepiece.src.python import sentencepiece_processor
+from sentencepiece import sentencepiece_model_pb2
+import sentencepiece as sentencepiece_processor
 
 PAD_ID = t5.data.PAD_ID
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Setup for pip package."""
-from setuptools import setup
+import setuptools
 
 
 def _strip_comments_from_line(s: str) -> str:
@@ -32,11 +32,14 @@ def _parse_requirements(requirements_txt_path: str) -> list[str]:
     return [l for l in lines if (l and 'github.com' not in l)]
 
 
-setup(
+setuptools.setup(
     name='optformer',
     version='1.0',
     description='OptFormer',
     author='OptFormer Team',
     author_email='vizier-team@google.com',
     install_requires=_parse_requirements('requirements.txt'),
-)
+    packages=setuptools.find_packages(),
+    package_data={
+        '': ['**/*.gin', '**/*.proto'],
+    })

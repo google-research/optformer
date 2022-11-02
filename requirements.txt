@@ -18,6 +18,7 @@ flax  # Use latest version for t5x.
 typing  # Version dependent on Python version.
 pytest  # Use the latest version to match github workflow.
 absl-py>=1.0.0
+nest-asyncio>=1.5.6
 
 # Experiment configuration utilities.
 ml-collections==0.1.1
