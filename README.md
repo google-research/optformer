@@ -17,8 +17,8 @@ The `InferenceModel` will then be wrapped into the `OptFormerDesigner`, which fo
 ## Training the OptFormer (Coming Soon!)
 **Work in Progress**
 
-## Benchmark Results (Coming Soon!)
-**Work in Progress**
+## Benchmark Results
+Numerical results used in the paper (for e.g. plotting and comparisons) can be found in the [results folder](https://github.com/google-research/optformer/tree/main/optformer/results).
 
 # Citation
 If you found this codebase useful, please consider citing our paper. Thanks!
