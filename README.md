@@ -6,7 +6,7 @@ All base dependencies can be installed from `requirements.txt`. Afterwards, [T5X
 
 # Usage
 
-## Pre-trained OptFormer as a Policy ([Example Notebook](https://github.com/google-research/optformer/blob/main/notebooks/OptFormer_inference.ipynb))
+## Pre-trained OptFormer as a Policy ([Example Notebook](https://github.com/google-research/optformer/blob/main/optformer/notebooks/OptFormer_inference.ipynb))
 To use our pre-trained OptFormer (exactly as-is from the paper), follow the steps:
 
 1. Download the model checkpoint from [TODO].
