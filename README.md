@@ -14,10 +14,13 @@ To use our pre-trained OptFormer (exactly as-is from the paper), follow the step
 
 The `InferenceModel` will then be wrapped into the `OptFormerDesigner`, which follows the same API as a OSS Vizier standard [`Designer`](https://oss-vizier.readthedocs.io/en/latest/guides/developer/writing_algorithms.html).
 
-## Training the OptFormer (Coming Soon!)
-**Work in Progress**
+## Training the OptFormer
+To train an OptFormer model, the data will need to consist of a large collection of studies. This data may come from two sources:
 
-## Benchmark Results
+1. Our generated dataset, in the form of a [Tensorflow Dataset (TFDS)](https://www.tensorflow.org/datasets), which can be found in [TODO]. Training using this data converged to the model checkpoint found above.
+2. Custom user-generated studies, which can be done using [OSS Vizier's benchmarking pipeline](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-benchmarking).
+
+## Paper Results
 Numerical results used in the paper (for e.g. plotting and comparisons) can be found in the [results folder](https://github.com/google-research/optformer/tree/main/optformer/results).
 
 # Citation
