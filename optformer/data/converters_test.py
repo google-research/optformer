@@ -57,7 +57,7 @@ class ConvertersTest(absltest.TestCase):
     study_texts = self.optformer_converter.study_to_texts(
         self.example_flat_study)
     correct_study_inputs = """N:"flat_search_space",A:"grid_search",O:"single_max",G:<1>&&N:"boolean",P:<3>,L:<2>,C:["False","True"]*N:"categorical",P:<3>,L:<3>,C:["a","aa","aaa"]*N:"discrete_double",S:<1>,P:<4>,L:<3>,F:[-0.5,1,1.2]*N:"discrete_int",S:<1>,P:<4>,L:<3>,F:[-1,1,2]*N:"discrete_logdouble",S:<2>,P:<4>,L:<3>,F:[1e-05,0.01,0.1]*N:"integer",S:<0>,P:<2>,m:<-2>,M:<2>*N:"lineardouble",S:<1>,P:<1>,m:-1,M:2*N:"logdouble",S:<2>,P:<1>,m:-9.21,M:4.61"""
-    correct_study_targets = """<0><0><0><0><0><0><0><0>*<0>|<0><0><0><0><0><0><10><0>*<999>"""
+    correct_study_targets = """<0><0><0><0><0><0><0><0>*<0>|<0><0><0><0><0><0><111><0>*<999>"""
 
     logging.info(study_texts.inputs)
     self.assertMultiLineEqual(study_texts.inputs, correct_study_inputs)
