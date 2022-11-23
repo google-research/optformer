@@ -342,8 +342,7 @@ class InferenceModel(object):
       if pattern not in gin_patterns_to_skip:
         gin_patterns_to_skip.append(pattern)
 
-    checkpoint_path_or_model_dir = os.path.normpath(
-        checkpoint_path_or_model_dir)
+    checkpoint_path_or_model_dir.rstrip(os.sep)  # Remove trailing '/'.
     dirname = checkpoint_path_or_model_dir.split(os.sep)[-1]
     if not dirname.startswith('checkpoint_'):
       # The input is a model directory.
