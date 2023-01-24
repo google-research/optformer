@@ -14,50 +14,37 @@
 
 # Register necessary SeqIO Tasks/Mixtures.
 #
-# Configuration for models trained on the BBOB dataset with all HPO algorithms.
-# Quantization Q = 1000
+# Configuration for models trained on the HPO-B dataset with all HPO algorithms.
 # Random objective range augmentation.
-# Minimum configuration in meta data.
 #
-# inputs length = 256
-# targets lengths = 2048
+# inputs length = 512
+# targets lengths = 1024
 # max_trials = 200
 
 from __gin__ import dynamic_registration
 
 from optformer.data import converters
-from optformer.data import tasks as t5_tasks
-
+from t5x import utils
 
 include 'optformer/t5x/configs/models/t5_1_1_base.gin'
 
+USE_CACHED_TASKS = True
+MIXTURE_OR_TASK_NAME = 'cached_hpob_gp_train_repeat_30'
+train_eval/utils.DatasetConfig:
+  mixture_or_task_name = 'cached_hpob_gp_eval'
 
-TARGET_LENGTHS = 2048
+TRAIN_STEPS = 1_000_000
+LEARNING_RATE = 0.3
+DROPOUT_RATE = 0.3
+
+TARGET_LENGTHS = 1024
 TASK_FEATURE_LENGTHS = {
-    'inputs': 256,
+    'inputs': 512,  # Maximum input seq after tokenizatio is 312.
     'targets': %TARGET_LENGTHS,
     'target_inputs': %TARGET_LENGTHS,
     'targets_types': %TARGET_LENGTHS,
     'targets_masks': %TARGET_LENGTHS,
 }
-DROPOUT_RATE = 0.0
-
-# Make sure the model's vocabulary object and size match the task's.
-VOCABULARY = @t5_tasks.get_vocabulary()
-NUM_EMBEDDINGS = 33152  # vocab size rounded to a multiple of 128 for TPU efficiency
-t5_tasks.get_vocabulary:
-  max_integer_tokens = 1000
-  expected_vocab_size = 33100  # max_integer_tokens + 1000 <= %NUM_EMBEDDINGS
-VOCAB_INDEX_FROM = 32100  # First token index of integers.
-
-# Initial number of tokens in the target string before the first trial starts.
-NUM_INITIAL_TOKENS = 1
-
-t5_tasks.add_tasks:
-  vocabulary = %VOCABULARY
-  masked_types = ['separator']  # Target masks in defining the training loss.
-  num_initial_tokens = %NUM_INITIAL_TOKENS
-  add_eos_in_targets = False
 
 # Config for study converter.
 STUDY_CONVERTER = @converters.OptFormerConverter()
@@ -65,5 +52,5 @@ converters.OptFormerConverter:
   rand_objective_scale_range = (0.3, 1.0)
   max_trials = 200
   num_initial_tokens = %NUM_INITIAL_TOKENS
-  minimum_config = True  # Always minimum_config
+  minimum_config = False  # Always use all metadata in the HPO-B transfer setting.
   minimum_config_per_study = False

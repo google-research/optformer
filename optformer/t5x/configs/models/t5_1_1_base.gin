@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# T5 model specific overrides.
+# Vizier T5 model specific overrides.
 #
-# Add this config after a model config gin file.
+# Quantization Q = 1000
 
 from __gin__ import dynamic_registration
 
+from optformer.data import tasks as t5_tasks
 from optformer.t5x import decoding as vizier_decoding
 from optformer.t5x import models as vizier_models
 from t5x.examples.t5 import network
@@ -37,7 +38,6 @@ vizier_models.VizierEncoderDecoderModel:
   label_smoothing = %LABEL_SMOOTHING
   loss_normalizing_factor = %LOSS_NORMALIZING_FACTOR
 
-NUM_EMBEDDINGS = 32128  # vocab size rounded to a multiple of 128 for TPU efficiency
 network.T5Config:
   vocab_size = %NUM_EMBEDDINGS
 
@@ -68,3 +68,20 @@ utils.RestoreCheckpointConfig:
   path = %CHECKPOINT_PATH
   mode = 'specific'
   dtype = 'float32'
+
+# Make sure the model's vocabulary object and size match the task's.
+VOCABULARY = @t5_tasks.get_vocabulary()
+NUM_EMBEDDINGS = 33152  # vocab size rounded to a multiple of 128 for TPU efficiency
+t5_tasks.get_vocabulary:
+  max_integer_tokens = 1000
+  expected_vocab_size = 33100  # max_integer_tokens + 1000 <= %NUM_EMBEDDINGS
+VOCAB_INDEX_FROM = 32100  # First token index of integers.
+
+# Initial number of tokens in the target string before the first trial starts.
+NUM_INITIAL_TOKENS = 1
+
+t5_tasks.add_tasks:
+  vocabulary = %VOCABULARY
+  masked_types = ['separator']  # Target masks in defining the training loss.
+  num_initial_tokens = %NUM_INITIAL_TOKENS
+  add_eos_in_targets = False

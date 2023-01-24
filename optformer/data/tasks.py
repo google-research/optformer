@@ -14,7 +14,7 @@
 
 """Language modeling on vizier studies."""
 import functools
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence
 
 from absl import logging
 from optformer.data import converters
@@ -46,9 +46,7 @@ def get_vocabulary(
   return vocabulary
 
 
-VOCABULARY_LAMDA = get_vocabulary()
-VOCABULARY_CC_ALL_100EXTRA = get_vocabulary(
-    sentencepiece_model_file=VOCAB_CC_ALL_100EXTRA_MODEL_FILE)
+VOCABULARY_CC_ALL_100EXTRA = get_vocabulary()
 
 
 def vizier_dataset_from_generator(
@@ -251,6 +249,40 @@ class DatasetFromStudy(object):
         suppress_error=False)
 
 
+class FakeDataSource(seqio.DataSource):
+  """A fake `DataSource` to load cached dataset."""
+
+  def __init__(
+      self,
+      split_to_num_shards: Dict[str, int],
+      splits: Iterable[str],
+      num_input_examples: Optional[Mapping[str, int]] = None,
+  ):
+    """FakeDataSource constructor."""
+    self._split_to_num_shards = split_to_num_shards
+    super().__init__(
+        splits=splits,
+        num_input_examples=num_input_examples,
+        caching_permitted=True,
+    )
+
+  @property
+  def supports_arbitrary_sharding(self) -> bool:
+    return False
+
+  def get_dataset(
+      self,
+      split: str,
+      shuffle: bool = True,
+      seed: Optional[int] = None,
+      shard_info: Optional[seqio.ShardInfo] = None,
+  ) -> tf.data.Dataset:
+    raise NotImplementedError
+
+  def list_shards(self, split: str) -> Sequence[str]:
+    return [str(i) for i in range(self._split_to_num_shards[split])]
+
+
 # Wrap a dataset_fn to match the required positional arguments.
 # Gin configured functions have no positional arguments but the dataset_fn
 # argument of t5.data.TaskRegistry.add requires positional arguments of split,
@@ -268,14 +300,15 @@ def _wrap_dataset_fn(dataset_fn: Callable[..., tf.data.Dataset]
 
 def add_tasks(
     name: str,
-    vocabulary: t5.data.Vocabulary = VOCABULARY_LAMDA,
+    vocabulary: t5.data.Vocabulary = VOCABULARY_CC_ALL_100EXTRA,
     masked_types: Optional[Sequence[str]] = None,
     num_initial_tokens: int = 1,
     add_eos_in_targets: bool = False,
     dataset_fn: Optional[t5.data.DatasetFnCallable] = None,
     splits: Sequence[str] = ('train', 'validation', 'test'),
     source: Optional[seqio.DataSource] = None,
-    supports_caching: bool = False):
+    supports_caching: bool = False,
+):
   """Creates a task."""
   masked_types = masked_types or []
 
@@ -321,3 +354,78 @@ def add_tasks(
       supports_caching=supports_caching,
       shuffle_buffer_size=100000,
   )
+
+
+################################################################################
+# Add cached tasks with a fake data source. These tasks only load data from the
+# cached TFRecord files.
+
+NUM_INITIAL_TOKENS = 1
+DATASET_SPLIT_TO_NUM_SHARDS = {
+    'cached_bbob_gp_train': {
+        'train': 697,
+    },
+    'cached_bbob_gp_eval': {
+        'validation': 64,
+        'test': 64,
+    },
+    'cached_bbob_train': {
+        'train': 2695,
+    },
+    'cached_bbob_train_repeat_4': {
+        'train': 10780,
+    },
+    'cached_bbob_eval': {
+        'validation': 64,
+        'test': 64,
+    },
+    'cached_hpob_gp_train': {
+        'train': 1000,
+    },
+    'cached_hpob_gp_train_repeat_30': {
+        'train': 30000,
+    },
+    'cached_hpob_gp_eval': {
+        'validation': 1000,
+        'test': 1000,
+    },
+    'cached_hpob_train': {
+        'train': 3000,
+    },
+    'cached_hpob_eval': {
+        'validation': 2000,
+        'test': 2000,
+    },
+}
+# Sweep dataset.
+for dataset in ['bbob', 'bbob_gp', 'hpob', 'hpob_gp']:
+  # Sweep train/eval mode.
+  for mode in ['train', 'eval']:
+    splits_ = ('train',) if mode == 'train' else ('validation', 'test')
+
+    # We provide cached training datasets for bbob and hpob_gp that have
+    # multiple epochs with random data augmentation to support training for 100K
+    # steps using a batch size of 256 without duplication.
+    if dataset == 'bbob' and mode == 'train':
+      repeats = [1, 4]
+    elif dataset == 'hpob_gp' and mode == 'train':
+      repeats = [1, 30]
+    else:
+      repeats = [1]
+
+    for repeat_ in repeats:
+      task_name_ = f'cached_{dataset}_{mode}'
+      if repeat_ > 1:
+        task_name_ += f'_repeat_{repeat_}'
+      add_tasks(
+          name=task_name_,
+          vocabulary=VOCABULARY_CC_ALL_100EXTRA,
+          source=FakeDataSource(
+              split_to_num_shards=DATASET_SPLIT_TO_NUM_SHARDS[task_name_],
+              splits=splits_,
+          ),
+          masked_types=['separator'],  # No separators prediction in loss.
+          num_initial_tokens=NUM_INITIAL_TOKENS,
+          add_eos_in_targets=False,
+          supports_caching=True,
+      )
