@@ -26,7 +26,8 @@ from __gin__ import dynamic_registration
 from optformer.data import converters
 from t5x import utils
 
-include 'optformer/t5x/configs/models/t5_1_1_base.gin'
+include 't5x/examples/t5/t5_1_1/base.gin'
+include 'optformer/t5x/configs/models/t5_1_1_overrides.gin'
 
 USE_CACHED_TASKS = True
 MIXTURE_OR_TASK_NAME = 'cached_hpob_gp_train_repeat_30'

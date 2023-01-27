@@ -31,12 +31,12 @@ from vizier import pyvizier as vz
 
 # Default arguments to create an inference_model for the Transformer designer.
 BBOB_INFERENCE_MODEL_KWARGS = {
-    'gs://gresearch/optformer/model_checkpoints/bbob/checkpoint_700000',
+    'checkpoint_path_or_model_dir': 'gs://gresearch/optformer/model_checkpoints/bbob/checkpoint_700000',
     'model_gin_file': 'optformer/t5x/configs/tasks/bbob.gin',
     'batch_size': 1,
 }
 HPOB_INFERENCE_MODEL_KWARGS = {
-    'gs://gresearch/optformer/model_checkpoints/hpob/checkpoint_400000',
+    'checkpoint_path_or_model_dir': 'gs://gresearch/optformer/model_checkpoints/hpob/checkpoint_400000',
     'model_gin_file': 'optformer/t5x/configs/tasks/hpob.gin',
     'batch_size': 1,
 }
