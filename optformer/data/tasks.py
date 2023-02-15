@@ -272,10 +272,14 @@ class FakeDataSource(seqio.DataSource):
 
   def get_dataset(
       self,
-      split: str,
+      split: str = 'train',
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[seqio.ShardInfo] = None,
+      *,
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     raise NotImplementedError
 
