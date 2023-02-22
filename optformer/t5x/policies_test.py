@@ -35,7 +35,9 @@ class PoliciesTest(absltest.TestCase):
       suggestions = designer.suggest(1)
       trials = [suggestion.to_trial() for suggestion in suggestions]
       experimenter.evaluate(trials)
-      designer.update(vza.CompletedTrials(trials))
+      designer.update(
+          completed=vza.CompletedTrials(trials), all_active=vza.ActiveTrials()
+      )
 
 
 if __name__ == '__main__':
