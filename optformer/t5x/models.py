@@ -38,7 +38,7 @@ from t5x import models
 from t5x import optimizers
 
 MetricsMap = models.MetricsMap
-PyTreeDef = models.PyTreeDef
+PyTree = Any
 DecodeFnCallable = models.DecodeFnCallable
 DecodingState = vizier_decoding.SamplingLoopState
 _NoValueSentinel = object()
@@ -106,13 +106,14 @@ class VizierEncoderDecoderModel(models.EncoderDecoderModel):
 
   def loss_fn(
       self,
-      params: PyTreeDef,
+      params: PyTree,
       batch: Mapping[str, jnp.ndarray],
       dropout_rng: Optional[jax.random.KeyArray],
       label_smoothing: Optional[float] = None,
       z_loss: Optional[float] = None,
-      loss_normalizing_factor: Union[Optional[float],
-                                     object] = _NoValueSentinel,
+      loss_normalizing_factor: Union[
+          Optional[float], object
+      ] = _NoValueSentinel,
   ) -> Tuple[jnp.ndarray, MetricsMap]:
     return loss_fn_with_additional_metrics(
         model=self,
@@ -125,13 +126,13 @@ class VizierEncoderDecoderModel(models.EncoderDecoderModel):
 
   def predict_batch_with_aux(
       self,
-      params: PyTreeDef,
+      params: PyTree,
       batch: Mapping[str, jnp.ndarray],
       rng: Optional[jax.random.KeyArray] = None,
       decoder_params: Optional[MutableMapping[str, Any]] = None,
       return_all_decodes: bool = False,
       num_decodes: int = 1,
-      prompt_with_targets: bool = False
+      prompt_with_targets: bool = False,
   ) -> Tuple[jnp.ndarray, Mapping[str, jnp.ndarray]]:
     """Predict with fast decoding beam search on a batch.
 
@@ -279,13 +280,12 @@ class VizierEncoderDecoderModel(models.EncoderDecoderModel):
 
 def loss_fn_with_additional_metrics(
     model,
-    params: PyTreeDef,
+    params: PyTree,
     batch: Mapping[str, jnp.ndarray],
     dropout_rng: Optional[jnp.ndarray],
     label_smoothing: Optional[float],
     z_loss: Optional[float],
-    loss_normalizing_factor: Union[Optional[float],
-                                   object]
+    loss_normalizing_factor: Union[Optional[float], object],
 ) -> Tuple[jnp.ndarray, MetricsMap]:
   """Shared loss function implementation by both Vizier architectures."""
   # pylint: disable=protected-access
