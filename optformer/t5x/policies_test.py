@@ -16,7 +16,7 @@
 from optformer.t5x import inference_utils
 from optformer.t5x import policies
 from vizier import algorithms as vza
-from vizier import benchmarks
+from vizier.benchmarks import experimenters
 from absl.testing import absltest
 
 
@@ -24,12 +24,14 @@ class PoliciesTest(absltest.TestCase):
 
   @absltest.skip("Checkpoint must be installed manually.")
   def test_e2e(self):
-    experimenter = benchmarks.IsingExperimenter(lamda=0.01)
+    experimenter = experimenters.IsingExperimenter(lamda=0.01)
 
     inference_model = inference_utils.InferenceModel.from_checkpoint(
-        **policies.BBOB_INFERENCE_MODEL_KWARGS)
+        **policies.BBOB_INFERENCE_MODEL_KWARGS
+    )
     designer = policies.OptFormerDesigner(
-        experimenter.problem_statement(), inference_model=inference_model)
+        experimenter.problem_statement(), inference_model=inference_model
+    )
 
     for _ in range(2):
       suggestions = designer.suggest(1)
