@@ -154,7 +154,7 @@ def restore_train_state(
   if init_rng is None:
     init_rng = jax.random.PRNGKey(17)
   input_shapes = _get_input_shapes(batch_size, sequence_length, model)
-  train_state_initializer = utils.TrainStateInitializer(
+  train_state_initializer = utils.TrainStateInitializer(  # pytype: disable=wrong-arg-types  # jax-array
       optimizer_def=model.optimizer_def,
       init_fn=model.get_initial_variables,
       input_shapes=input_shapes,
