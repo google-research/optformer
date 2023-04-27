@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package optformer;
 
-import "vizier/service/pythia_service.proto";
-import "vizier/service/study.proto";
+import "vizier/_src/service/pythia_service.proto";
+import "vizier/_src/service/study.proto";
 
 message ProblemAndTrials {
   vizier.ProblemStatement problem = 1;
