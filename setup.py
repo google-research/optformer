@@ -22,7 +22,7 @@ def _strip_comments_from_line(s: str) -> str:
   return requirement.strip()
 
 
-def _parse_requirements(requirements_txt_path: str) -> list[str]:
+def _parse_requirements(requirements_txt_path: str):
   """Returns a list of dependencies for setup() from requirements.txt."""
 
   with open(requirements_txt_path) as fp:
