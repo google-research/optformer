@@ -387,9 +387,8 @@ class OptFormerDesigner(vza.Designer):
     return max_funs
 
   def update(
-      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+      self, completed: vza.CompletedTrials
   ) -> None:
-    del all_active
     completed_trials = []
     for trial in completed.trials:
       # A completed trial either has a final_measurement or is marked as
