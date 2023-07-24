@@ -1,11 +1,15 @@
 # T5X prerequisite.
-seqio  # Always compatible with most up-to-date version.
+t5
+seqio==0.0.13
 
 # OSS Vizier
-google-vizier # Use latest version.
+google-vizier==0.0.20
 
 # Proto
 protobuf>=3.6,<4.0
+
+# For the notebook
+matplotlib
 
 # Autodiff and numerical packages.
 numpy>=1.21.5

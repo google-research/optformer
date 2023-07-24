@@ -2,7 +2,7 @@
 This is the code used for the paper [Towards Learning Universal Hyperparameter Optimizers with Transformers (NeurIPS 2022)](https://arxiv.org/abs/2205.13320).
 
 # Installation
-All base dependencies can be installed from `requirements.txt`. Afterwards, [T5X](https://github.com/google-research/t5x) must be manually installed.
+To get started, manually install [T5X](https://github.com/google-research/t5x). Afterwards, install OptFormer with ``pip install -e .``.
 
 # Usage
 
