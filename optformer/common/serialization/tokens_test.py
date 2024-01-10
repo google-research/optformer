@@ -14,7 +14,7 @@
 
 from typing import Any, Sequence
 
-from optformer.serialization import tokens
+from optformer.common.serialization import tokens
 
 from absl.testing import absltest
 from absl.testing import parameterized

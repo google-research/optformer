@@ -19,7 +19,7 @@ from typing import Optional
 
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int  # pylint: disable=g-multiple-import,g-importing-member
-from optformer.inference import sequence_utils as seq_utils
+from optformer.common.inference import sequence_utils as seq_utils
 from t5x import decoding
 
 

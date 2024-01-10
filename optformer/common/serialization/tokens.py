@@ -19,7 +19,7 @@ import re
 from typing import Any, Generic, Sequence, Tuple, Type, TypeVar
 
 import attrs
-from optformer.serialization import base
+from optformer.common.serialization import base
 from optformer.validation import runtime
 import ordered_set
 

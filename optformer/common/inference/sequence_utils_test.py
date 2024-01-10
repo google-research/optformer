@@ -16,7 +16,7 @@ import jax
 from jax.experimental import checkify
 import jax.numpy as jnp
 import numpy as np
-from optformer.inference import sequence_utils
+from optformer.common.inference import sequence_utils
 from optformer.validation import checkify as _checkify
 from absl.testing import absltest
 from absl.testing import parameterized
