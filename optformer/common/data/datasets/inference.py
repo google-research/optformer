@@ -86,7 +86,7 @@ class T5XInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
       featurizer: featurizers.Featurizer[_S],
       input_vocabulary: seqio.Vocabulary,
       output_vocabulary: seqio.Vocabulary,
-      feature_converter: seqio.feature_converters.FeatureConverter,
+      feature_converter: seqio.FeatureConverter,
       max_encoder_sequence_length: int,
       max_decoder_sequence_length: int,
   ):

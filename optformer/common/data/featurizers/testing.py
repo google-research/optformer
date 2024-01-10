@@ -20,7 +20,7 @@ import tensorflow as tf
 
 
 class IdentityFeaturizer(base.Featurizer[str]):
-  """Simply returns identity of bytes string input."""
+  """Simply returns identity of string input."""
 
   def to_features(self, obj: str, /) -> dict[str, tf.Tensor]:
     return {
