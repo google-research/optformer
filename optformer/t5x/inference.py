@@ -64,14 +64,14 @@ class InferenceConfig:
 
   def get_dataset_fn(
       self, max_inputs_length: int, max_targets_length: int
-  ) -> datasets.T5XInferenceDatasetFn:
-    return datasets.T5XInferenceDatasetFn(
+  ) -> datasets.E2EInferenceDatasetFn:
+    return datasets.E2EInferenceDatasetFn(
         featurizer=self.featurizer,
         input_vocabulary=self.model.input_vocabulary,
         output_vocabulary=self.model.output_vocabulary,
         feature_converter=self.model.FEATURE_CONVERTER_CLS(pack=False),
-        max_encoder_sequence_length=max_inputs_length,
-        max_decoder_sequence_length=max_targets_length,
+        max_inputs_length=max_inputs_length,
+        max_targets_length=max_targets_length,
     )
 
   @classmethod

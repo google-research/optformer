@@ -19,7 +19,7 @@ from optformer.common.data.datasets.distributed import DistributedDatasetFn
 from optformer.common.data.datasets.distributed import DistributedSeqioDatasetFn
 from optformer.common.data.datasets.featurized import FeaturizedDatasetFn
 from optformer.common.data.datasets.generator import GeneratorDatasetFn
+from optformer.common.data.datasets.inference import E2EInferenceDatasetFn
 from optformer.common.data.datasets.inference import SeqIOInferenceDatasetFn
-from optformer.common.data.datasets.inference import T5XInferenceDatasetFn
 from optformer.common.data.datasets.shuffling import ShuffleDatasetFn
 from optformer.common.data.datasets.wrappers import SeqioDatasetFnFunctor

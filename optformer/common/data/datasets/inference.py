@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""T5 datasets."""
+"""Inference-related datasets."""
 
 from typing import Any, Generic, Iterable, TypeVar
 
@@ -70,12 +70,11 @@ class SeqIOInferenceDatasetFn(base.DatasetFn[tf.data.Dataset]):
 _S = TypeVar("_S")
 
 
-# TODO: Should this just be merged w/ SeqIOInferenceDatasetFn?
 @attrs.define(init=False)
-class T5XInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
-  """Converts a batch of Python objects into a T5X Model input for inference.
+class E2EInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
+  """Converts a batch of Python objects to inference inputs.
 
-  Python objects must be featurized first.
+  Python objects will be featurized first.
   """
 
   featurizer: featurizers.Featurizer[_S] = attrs.field(kw_only=True)
@@ -87,10 +86,10 @@ class T5XInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
       input_vocabulary: seqio.Vocabulary,
       output_vocabulary: seqio.Vocabulary,
       feature_converter: seqio.FeatureConverter,
-      max_encoder_sequence_length: int,
-      max_decoder_sequence_length: int,
+      max_inputs_length: int,
+      max_targets_length: int,
   ):
-    """Custom init to reduce field ownership and align w/ T5X gin usage."""
+    """Custom init to reduce field ownership."""
     output_features = {
         # Input format is already rigorously defined, no need for EOS.
         "inputs": seqio.Feature(vocabulary=input_vocabulary, add_eos=False),
@@ -101,8 +100,8 @@ class T5XInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
         output_features=output_features,
         feature_converter=feature_converter,
         task_feature_lengths={
-            "inputs": max_encoder_sequence_length,
-            "targets": max_decoder_sequence_length,
+            "inputs": max_inputs_length,
+            "targets": max_targets_length,
         },
     )
     self.__attrs_init__(

@@ -86,20 +86,20 @@ class SeqIOInferenceDatasetTest(absltest.TestCase):
     seqio.test_utils.assert_dataset(dataset, expected)
 
 
-class T5XInferenceDatasetTest(absltest.TestCase):
+class E2EInferenceDatasetFnTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
     self.test_vocab = vocabs.AsciiVocab()
 
   def test_e2e(self):
-    inference_dataset_fn = inference.T5XInferenceDatasetFn(
+    inference_dataset_fn = inference.E2EInferenceDatasetFn(
         featurizer=featurizers.IdentityFeaturizer(),
         input_vocabulary=self.test_vocab,
         output_vocabulary=self.test_vocab,
         feature_converter=seqio.EncDecFeatureConverter(pack=False),
-        max_encoder_sequence_length=1024,
-        max_decoder_sequence_length=1024,
+        max_inputs_length=1024,
+        max_targets_length=1024,
     )
     buffer = []
     buffer_dataset = inference_dataset_fn(buffer)
