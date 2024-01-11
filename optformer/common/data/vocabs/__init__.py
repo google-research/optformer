@@ -15,3 +15,5 @@
 """All import vocabularies."""
 
 from optformer.common.data.vocabs.ascii import AsciiVocab
+from optformer.common.data.vocabs.sentencepiece import HybridVocabulary
+from optformer.common.data.vocabs.sentencepiece import SentencePieceVocabulary
