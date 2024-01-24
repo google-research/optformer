@@ -33,14 +33,14 @@ class Partitioner(base.Processor[Dict[str, tf.Tensor]]):
       raise ValueError(f'Ratios {self.split_ratios} do not sum to 1.0.')
 
   def __call__(self, features: tf.Tensor) -> Dict[str, tf.Tensor]:
-    def slice_fn(s: np.ndarray) -> Tuple[np.ndarray, ...]:
-      batch_size = s.shape[0]
-
-      ratios = list(self.split_ratios.values())
-      split_indices = (batch_size * np.cumsum(ratios)[:-1]).astype(np.int_)
-      return np.split(s, split_indices, axis=0)
-
-    n_sp = len(self.split_ratios)
-    slices = tf.numpy_function(slice_fn, [features], Tout=n_sp * [tf.string])
-
+    slices = tf.numpy_function(
+        self.numpy_fn, [features], Tout=len(self.split_ratios) * [tf.string]
+    )
     return dict(zip(self.split_ratios.keys(), slices, strict=True))
+
+  def numpy_fn(self, s: np.ndarray) -> Tuple[np.ndarray, ...]:
+    batch_size = s.shape[0]
+
+    ratios = list(self.split_ratios.values())
+    split_indices = (batch_size * np.cumsum(ratios)[:-1]).astype(np.int_)
+    return np.split(s, split_indices, axis=0)
