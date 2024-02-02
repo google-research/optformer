@@ -120,9 +120,12 @@ class SentencePieceVocabulary(seqio.SentencePieceVocabulary):
     return self._extra_tokens
 
   @property
-  def extra_tokens_index(self) -> int:
-    """Beginning index of the extra tokens."""
+  def initial_extra_token_id(self) -> int:
+    """Beginning ID of the extra tokens."""
     return self.vocab_size - len(self._extra_tokens)
+
+  def extra_token_id(self, extra_token: str) -> int:
+    return self._extra_tokens.index(extra_token) + self.initial_extra_token_id
 
 
 _T = TypeVar("_T")

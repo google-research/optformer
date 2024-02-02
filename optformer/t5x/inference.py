@@ -15,7 +15,7 @@
 """Inference-related classes and functions."""
 
 import dataclasses
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 
 import gin
 import jax
@@ -54,17 +54,20 @@ def _initial_train_state(
   )
 
 
+_T = TypeVar('_T')
+
+
 @dataclasses.dataclass
-class InferenceConfig:
+class InferenceConfig(Generic[_T]):
   """Minimum set of objects required for end-to-end inference."""
 
   model: models.BaseTransformerModel
-  featurizer: featurizers.Featurizer
+  featurizer: featurizers.Featurizer[_T]
   train_state: train_state_lib.FlaxOptimTrainState
 
   def get_dataset_fn(
       self, max_inputs_length: int, max_targets_length: int
-  ) -> datasets.E2EInferenceDatasetFn:
+  ) -> datasets.E2EInferenceDatasetFn[_T]:
     return datasets.E2EInferenceDatasetFn(
         featurizer=self.featurizer,
         input_vocabulary=self.model.input_vocabulary,

@@ -60,5 +60,5 @@ class IndexLogitRestrictor(decoding.LogitCallbackFn):
     return (1.0 - curr_mask) * decoding.NEG_INF + curr_mask * logits
 
   @abc.abstractmethod
-  def logit_mask(self, index: jnp.ndarray) -> Float[Array, "BS V"]:
+  def logit_mask(self, index: Int[Array, "BS"]) -> Float[Array, "BS V"]:
     """Returns logit mask at index."""
