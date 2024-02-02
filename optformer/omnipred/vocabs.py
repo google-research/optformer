@@ -14,18 +14,24 @@
 
 """Omnipred-specific vocabulary."""
 
-import attrs
 from optformer.common.data import vocabs
 from optformer.common.serialization import numeric
 
 
-@attrs.define
 class FloatMetricVocabulary(vocabs.HybridVocabulary[float]):
   """Vocabulary for specifically dealing with floats."""
 
-  _deserializer: numeric.DigitByDigitFloatTokenSerializer = attrs.field(
-      factory=numeric.DigitByDigitFloatTokenSerializer
-  )
+  def __init__(
+      self,
+      sentencepiece_model_file: str,
+      deserializer: numeric.DigitByDigitFloatTokenSerializer,
+  ):
+
+    super().__init__(
+        sentencepiece_model_file,
+        extra_tokens=list(deserializer.all_tokens_used()),
+    )
+    self._deserializer = deserializer
 
   @property
   def deserializer(self) -> numeric.DigitByDigitFloatTokenSerializer:

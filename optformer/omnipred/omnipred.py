@@ -16,7 +16,7 @@
 
 import functools
 import typing
-from typing import Generic, Mapping, Tuple, TypeVar
+from typing import Callable, Generic, Mapping, Tuple, TypeVar
 import attrs
 import jax
 import jax.numpy as jnp
@@ -31,14 +31,14 @@ from optformer.t5x import inference
 class _OmniPredLogitRestrictor(decoding.IndexLogitRestrictor):
   """Forces decoding of only necessary float tokens."""
 
-  INIT_TOKEN = 329
+  INIT_TOKEN_ID = 329
 
   vocab: vocabs.FloatMetricVocabulary = attrs.field(init=True)
   _logits_masks: Float[Array, 'L V'] = attrs.field(init=False)
 
   def __attrs_post_init__(self):
     logits_masks = np.zeros((self.vocab.decode_length, self.vocab.vocab_size))
-    logits_masks[0, self.INIT_TOKEN] = 1.0  # Initial 329 token always used.
+    logits_masks[0, self.INIT_TOKEN_ID] = 1.0  # Initial 329 token always used.
 
     # Only turns on index-dependent custom tokens representing floats.
     for i in range(self.vocab.deserializer.num_tokens_per_obj):  # pytype:disable=attribute-error
@@ -100,16 +100,18 @@ class OmniPred(Generic[_T]):
     )
     return sampled_tokens, aux['scores']
 
-  def predict(self, prompt: _T) -> float:
-    """Give a pointwise prediction, median-aggregated from samples."""
+  def predict(
+      self, prompt: _T, aggregator_fn: Callable[[np.ndarray], float] = np.median
+  ) -> float:
+    """Give a pointwise prediction, aggregated from samples."""
     ds = self._dataset_fn([prompt]).batch(1)
     batch = next(ds.as_numpy_iterator())
 
     toks, _ = self._sample_tokens(batch)
     toks = jnp.squeeze(toks, axis=0)  # [S, L]
 
-    fs = [self._vocab.decode_to_object(t) for t in toks]
-    return np.median(fs)
+    fs = np.array([self._vocab.decode_to_object(t) for t in toks])
+    return aggregator_fn(fs)
 
   @property
   def _vocab(self) -> vocabs.FloatMetricVocabulary:
