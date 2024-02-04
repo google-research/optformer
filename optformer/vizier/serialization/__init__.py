@@ -14,4 +14,5 @@
 
 """Public Vizier serializers."""
 
+from optformer.vizier.serialization.metadata import MetadataSerializer
 from optformer.vizier.serialization.trial import JSONSuggestionSerializer
