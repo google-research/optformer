@@ -15,12 +15,11 @@
 """Serializers related to vz.Trial."""
 
 import json
-
 from optformer.common import serialization as s_lib
 from vizier import pyvizier as vz
 
 
-class JSONSuggestionSerializer(
+class DefaultParametersSerializer(
     s_lib.Serializer[vz.ParameterDict], s_lib.Deserializer[vz.ParameterDict]
 ):
 

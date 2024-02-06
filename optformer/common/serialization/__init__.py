@@ -18,8 +18,11 @@ from optformer.common.serialization.base import Deserializer
 from optformer.common.serialization.base import Serializer
 from optformer.common.serialization.base import SerializerFactory
 from optformer.common.serialization.primitive import PrimitiveSerializer
+from optformer.common.serialization.primitive import PrimitiveType
+from optformer.common.serialization.tokens import CartesianProductTokenSerializer
 from optformer.common.serialization.tokens import IntegerTokenSerializer
 from optformer.common.serialization.tokens import OneToManyTokenSerializer
+from optformer.common.serialization.tokens import RepeatedUnitTokenSerializer
 from optformer.common.serialization.tokens import StringTokenSerializer
 from optformer.common.serialization.tokens import TokenSerializer
 from optformer.common.serialization.tokens import UnitSequenceTokenSerializer

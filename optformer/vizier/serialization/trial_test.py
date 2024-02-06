@@ -12,9 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Public Vizier serializers."""
+from optformer.vizier.serialization import trial as trial_lib
+from vizier import pyvizier as vz
+from absl.testing import absltest
 
-from optformer.vizier.serialization.metadata import MetadataSerializer
-from optformer.vizier.serialization.tokens import MeasurementTokenSerializer
-from optformer.vizier.serialization.tokens import TrialTokenSerializer
-from optformer.vizier.serialization.trial import DefaultParametersSerializer
+
+class DefaultParametersSerializerTest(absltest.TestCase):
+
+  def test_e2e(self):
+    serializer = trial_lib.DefaultParametersSerializer()
+    parameters = vz.ParameterDict(a=3, b=5.0, c="hello")
+    s = serializer.to_str(parameters)
+
+    self.assertEqual(s, """{"a": 3, "b": 5.0, "c": "hello"}""")
+    self.assertEqual(serializer.from_str(s), parameters)
+
+
+if __name__ == "__main__":
+  absltest.main()

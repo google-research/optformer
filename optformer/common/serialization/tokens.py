@@ -163,7 +163,7 @@ class RepeatedUnitTokenSerializer(OneToManyTokenSerializer[_V]):
 
 
 # TODO: Use this to refactor `ScientificFloatTokenSerializer`.
-class CartesianProductTokenSerializer(OneToManyTokenSerializer[Sequence[_V]]):
+class CartesianProductTokenSerializer(OneToManyTokenSerializer[_V]):
   """Maps an object to a fixed number of tokens based on cartesian product.
 
   Output will be of form e.g. <a><b><c>... where <a> is from set A, <b> is from

@@ -18,6 +18,7 @@ Values can be `int`, `float`, `str`, etc.
 Containers can be `dict, `list, `np.array`, etc. containing values.
 """
 
+import json
 from typing import Any, Dict, Optional, Sequence, Union
 
 import attrs
@@ -137,3 +138,15 @@ class PrimitiveSerializer(base.Serializer[PrimitiveType]):
     if self.include_sequence_brackets:
       return '[' + interior + ']'
     return interior
+
+
+class JSONSerializer(
+    base.Serializer[PrimitiveType], base.Deserializer[PrimitiveType]
+):
+
+  def to_str(self, obj: PrimitiveType, /) -> str:
+    """Performs string conversion on a variety of Python primitives."""
+    return json.dumps(obj)
+
+  def from_str(self, s: str) -> PrimitiveType:
+    return json.loads(s)

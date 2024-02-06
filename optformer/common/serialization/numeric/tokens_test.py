@@ -20,20 +20,20 @@ from absl.testing import parameterized
 class DigitByDigitFloatTokenSerializerTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      (123.4, '<+><1><2><3><E0>', 123.0),
-      (12345, '<+><1><2><3><E2>', 12300),
-      (0.1234, '<+><1><2><3><E-3>', 0.123),
-      (-123.4, '<-><1><2><3><E0>', -123.0),
-      (-12345, '<-><1><2><3><E2>', -12300),
-      (-0.1234, '<-><1><2><3><E-3>', -0.123),
-      (0.0, '<+><0><0><0><E0>', 0.0),
-      (-0.0, '<+><0><0><0><E0>', 0.0),  # in python, 0.0 == -0.0
-      (-0.4e-13, '<-><0><0><0><E0>', 0.0),  # notice the leading negative zero
+      (123.4, '<+><1><2><3><4><E-1>', 123.4),
+      (12345, '<+><1><2><3><4><E1>', 12340),
+      (0.1234, '<+><1><2><3><4><E-4>', 0.1234),
+      (-123.4, '<-><1><2><3><4><E-1>', -123.4),
+      (-12345, '<-><1><2><3><4><E1>', -12340),
+      (-0.1234, '<-><1><2><3><4><E-4>', -0.1234),
+      (0.0, '<+><0><0><0><0><E0>', 0.0),
+      (-0.0, '<+><0><0><0><0><E0>', 0.0),  # in python, 0.0 == -0.0
+      (-0.4e-13, '<-><0><0><0><0><E0>', 0.0),  # note leading negative zero
   )
   def test_serialize(self, f: float, serialized: str, deserialized: float):
     serializer = tokens.DigitByDigitFloatTokenSerializer()
     self.assertEqual(serializer.to_str(f), serialized)
-    self.assertEqual(serializer.from_str(serialized), deserialized)
+    self.assertAlmostEqual(serializer.from_str(serialized), deserialized)
 
   @parameterized.parameters((3, 10, 1.0e-8, 9.99e12), (1, 5, 1.0e-5, 9.0e5))
   def test_representation_range(

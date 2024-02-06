@@ -50,7 +50,7 @@ class DigitByDigitFloatTokenSerializer(
       floats.
   """
 
-  num_digits: int = attrs.field(default=3)
+  num_digits: int = attrs.field(default=4)
   exponent_range: int = attrs.field(default=10)
 
   tokens_serializer: tokens_lib.TokenSerializer[Sequence[Union[str, int]]] = (
