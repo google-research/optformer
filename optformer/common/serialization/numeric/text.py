@@ -110,3 +110,18 @@ class ExpandedScientificFloatSerializer(
       f += digit * power
 
     return sign * f
+
+
+@attrs.define
+class SimpleFloatTextSerializer(
+    base.Serializer[float], base.Deserializer[float]
+):
+  """Represent floats as simple text."""
+
+  precision: int = attrs.field(default=5, kw_only=True)
+
+  def to_str(self, f: float, /) -> str:
+    return str(round(f, self.precision))
+
+  def from_str(self, s: str, /) -> float:
+    return float(s)

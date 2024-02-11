@@ -16,4 +16,5 @@
 
 from optformer.common.serialization.numeric.text import ExpandedScientificFloatSerializer
 from optformer.common.serialization.numeric.text import ScientificFloatTextSerializer
+from optformer.common.serialization.numeric.text import SimpleFloatTextSerializer
 from optformer.common.serialization.numeric.tokens import DigitByDigitFloatTokenSerializer

@@ -67,5 +67,34 @@ class ExpandedScientificFloatSerializerTest(parameterized.TestCase):
     self.assertAlmostEqual(serializer.from_str(serialized), f, places=3)
 
 
+class SimpleFloatTextSerializerTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      (1.0, '1.0', 1.0),
+      (2.1, '2.1', 2.1),
+      (123.4, '123.4', 123.4),
+      (12345, '12345', 12345),
+      (0.1234, '0.123', 0.123),
+      (-123.4, '-123.4', -123.4),
+      (-12345, '-12345', -12345.0),
+      (-0.1234, '-0.123', -0.123),
+      (0.0, '0.0', 0.0),
+      (-0.4e-8, '-0.0', -0.0),
+  )
+  def test_default(self, f: float, serialized: str, deserialized: float):
+    serializer = text.SimpleFloatTextSerializer(precision=3)
+    self.assertEqual(serializer.to_str(f), serialized)
+    self.assertEqual(serializer.from_str(serialized), deserialized)
+
+  @parameterized.parameters(
+      (np.nan,),
+      (-np.nan,),
+  )
+  def test_nan(self, f: float):
+    serializer = text.SimpleFloatTextSerializer()
+    self.assertEqual(serializer.to_str(f), 'nan')
+    self.assertTrue(np.isnan(serializer.from_str('nan')))
+
+
 if __name__ == '__main__':
   absltest.main()
