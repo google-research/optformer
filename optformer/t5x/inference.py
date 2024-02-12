@@ -15,6 +15,7 @@
 """Inference-related classes and functions."""
 
 import dataclasses
+import functools
 from typing import Generic, Optional, TypeVar
 
 import gin
@@ -27,7 +28,7 @@ from t5x import models
 from t5x import train_state as train_state_lib
 
 
-def _initial_train_state(
+def initial_train_state(
     model: models.BaseTransformerModel,
 ) -> train_state_lib.FlaxOptimTrainState:
   """Gives an initial train state.
@@ -78,9 +79,10 @@ class InferenceConfig(Generic[_T]):
     )
 
   @classmethod
+  @functools.cache
   def from_gin_file(
       cls, file: str, step: Optional[int] = None
-  ) -> 'InferenceConfig':
+  ) -> 'InferenceConfig[_T]':
     """Parses gin file with pre-defined variable names."""
     gin_utils.parse_gin_flags(
         gin_search_paths=['/'],
@@ -97,7 +99,7 @@ class InferenceConfig(Generic[_T]):
         gin.query_parameter('%MODEL_DIR'),
         step=step,
     )
-    train_state = _initial_train_state(model)
+    train_state = initial_train_state(model)
     train_state = train_state.restore_state(checkpoint.unfreeze())
 
     return cls(model, featurizer, train_state)
