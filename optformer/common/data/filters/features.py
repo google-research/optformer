@@ -32,9 +32,7 @@ class TokenLengthFilter(base.Filter[Dict[str, tf.Tensor]]):
   max_token_lengths: Dict[str, int] = attrs.field(
       factory=lambda: {'inputs': 4096, 'targets': 4096}
   )
-  vocab: seqio.Vocabulary | None = attrs.field(
-      init=True, default=None, kw_only=True
-  )
+  vocab: seqio.Vocabulary | None = attrs.field(default=None)
 
   def __call__(self, features: Dict[str, tf.Tensor]) -> bool:
     for k, v in self.max_token_lengths.items():
