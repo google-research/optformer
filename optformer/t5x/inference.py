@@ -81,7 +81,7 @@ class InferenceConfig(Generic[_T]):
   @classmethod
   @functools.cache
   def from_gin_file(
-      cls, file: str, step: Optional[int] = None
+      cls, file: str, step: Optional[int] = None, restore_state: bool = True
   ) -> 'InferenceConfig[_T]':
     """Parses gin file with pre-defined variable names."""
     gin_utils.parse_gin_flags(
@@ -100,6 +100,7 @@ class InferenceConfig(Generic[_T]):
         step=step,
     )
     train_state = initial_train_state(model)
-    train_state = train_state.restore_state(checkpoint.unfreeze())
+    if restore_state:
+      train_state = train_state.restore_state(checkpoint.unfreeze())
 
     return cls(model, featurizer, train_state)

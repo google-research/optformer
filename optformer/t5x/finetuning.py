@@ -41,11 +41,12 @@ class EarlyStoppingFinetuner(Generic[_D]):
   """Keeps finetuning against training data until overfitting is detected."""
 
   model: models.BaseTransformerModel = attrs.field()
-  inference_dataset_fn: datasets.T5XInferenceDatasetFn[_D] = attrs.field()
+  inference_dataset_fn: datasets.E2EInferenceDatasetFn[_D] = attrs.field()
 
-  batch_size: int = attrs.field(default=256)  # Should match training.
   learning_rate: float = attrs.field(default=1e-5)  # 10x lower than training.
   max_num_epochs: int = attrs.field(default=30)
+  batch_size: int = attrs.field(default=256)  # Should match training.
+
   seed: int = attrs.field(default=0)
   loss_batch_size: int = attrs.field(default=64)  # TPU memory limit
 
