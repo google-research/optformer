@@ -58,7 +58,7 @@ class DistributedDatasetFnTest(absltest.TestCase):
     # Separate process/machine (ideally same as model training process)
     with flagsaver.flagsaver(reverb_address=self.server_address):
       dataset_fn = distributed.DistributedDatasetFn(self.table_name)
-      self.distributed_dataset = dataset_fn(self.original_dataset)
+      self.distributed_dataset = dataset_fn(self.original_dataset.element_spec)
 
     data = next(self.original_dataset.as_numpy_iterator())
     self.client.insert(data, {self.table_name: 1.0})

@@ -29,17 +29,10 @@ class IdentityFeaturizer(base.Featurizer[str]):
     }
 
   @functools.cached_property
-  def output_types(self) -> dict[str, tf.DType]:
+  def element_spec(self) -> dict[str, tf.TensorSpec]:
     return {
-        'inputs': tf.string,
-        'targets': tf.string,
-    }
-
-  @functools.cached_property
-  def output_shapes(self) -> dict[str, tf.TensorShape]:
-    return {
-        'inputs': tf.TensorShape([]),
-        'targets': tf.TensorShape([]),
+        'inputs': tf.TensorSpec(shape=(), dtype=tf.string),
+        'targets': tf.TensorSpec(shape=(), dtype=tf.string),
     }
 
   @functools.cached_property

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Featurizers for creating TensorDicts, eventually to be used in data pipelines."""
+
 import abc
 from typing import Dict, Generic, TypeVar
 
@@ -35,13 +36,8 @@ class Featurizer(Generic[_T], abc.ABC):
 
   @property
   @abc.abstractmethod
-  def output_types(self) -> Dict[str, tf.DType]:
-    """Returns the dtypes of values returned by to_features()."""
-
-  @property
-  @abc.abstractmethod
-  def output_shapes(self) -> Dict[str, tf.TensorShape]:
-    """Returns the shapes of values returned by to_features()."""
+  def element_spec(self) -> Dict[str, tf.TensorSpec]:
+    """Returns the TensorSpecs of values returned by to_features()."""
 
   @property
   @abc.abstractmethod
@@ -57,3 +53,13 @@ class Featurizer(Generic[_T], abc.ABC):
           return False, featurizer.empty_output
       dataset.map(featurizer.to_features).filter(lambda x: x[0])
     """
+
+  @property
+  def output_types(self) -> Dict[str, tf.DType]:
+    """Returns the dtypes of values returned by to_features()."""
+    return {k: v.dtype for k, v in self.element_spec.items()}
+
+  @property
+  def output_shapes(self) -> Dict[str, tf.TensorShape]:
+    """Returns the shapes of values returned by to_features()."""
+    return {k: v.shape for k, v in self.element_spec.items()}

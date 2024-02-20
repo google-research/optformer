@@ -12,32 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
-
 from optformer.common.data import featurizers
 from optformer.common.data.datasets import generator
 import seqio
-import tensorflow as tf
 
 from absl.testing import absltest
-
-
-class DoNothingFeaturizer(featurizers.Featurizer[str]):
-
-  def to_features(self, obj: str) -> Dict[str, tf.Tensor]:
-    return {'key': tf.constant(obj, dtype=tf.string)}
-
-  @property
-  def output_types(self) -> Dict[str, tf.DType]:
-    return {'key': tf.string}
-
-  @property
-  def output_shapes(self) -> Dict[str, tf.TensorShape]:
-    return {'key': tf.TensorShape([])}
-
-  @property
-  def empty_output(self) -> Dict[str, tf.Tensor]:
-    return {'key': tf.constant('', dtype=tf.string)}
 
 
 class GeneratorDatasetFnTest(absltest.TestCase):
@@ -46,11 +25,14 @@ class GeneratorDatasetFnTest(absltest.TestCase):
     buffer = ['hello', 'goodbye']
     gen = (s for s in buffer)
 
-    featurizer = DoNothingFeaturizer()
+    featurizer = featurizers.IdentityFeaturizer()
     dataset_fn = generator.GeneratorDatasetFn(featurizer=featurizer)
 
     dataset = dataset_fn(gen)
-    expected = [{'key': b'hello'}, {'key': b'goodbye'}]
+    expected = [
+        {'inputs': b'hello', 'targets': b'hello'},
+        {'inputs': b'goodbye', 'targets': b'goodbye'},
+    ]
     seqio.test_utils.assert_dataset(dataset, expected)
 
 

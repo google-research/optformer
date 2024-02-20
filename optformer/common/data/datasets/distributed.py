@@ -14,7 +14,7 @@
 
 """Distributed dataset for scaling data-loading to many CPUs."""
 
-from typing import Callable, Optional
+from typing import Optional
 
 from absl import flags
 import attrs
@@ -54,18 +54,18 @@ class DistributedDatasetFn(base.DatasetFn[tf.data.Dataset]):
   max_in_flight_samples_per_worker: int = attrs.field(default=2, kw_only=True)
   prefetch: Optional[int] = attrs.field(default=8, kw_only=True)
 
-  def __call__(self, source: tf.data.Dataset) -> reverb.TimestepDataset:
+  def __call__(
+      self, element_spec: dict[str, tf.TensorSpec]
+  ) -> reverb.TimestepDataset:
     """Creates the distributed Reverb dataset as a server.
 
     Args:
-      source: Single-process dataset version, used **only as a template** to
-        obtain dtype/shape information.
+      element_spec: A dict of `tf.TensorSpec` specifying the original dataset
+        dtypes and shapes.
 
     Returns:
       Reverb server dataset.
     """
-
-    template_ds = source
 
     if REVERB_ADDRESS.value is None:
       raise ValueError('`reverb_address` flag is still unset!')
@@ -73,8 +73,8 @@ class DistributedDatasetFn(base.DatasetFn[tf.data.Dataset]):
     ds = reverb.TimestepDataset(
         server_address=REVERB_ADDRESS.value,
         table=self.table_name,
-        dtypes=tree.map_structure(lambda x: x.dtype, template_ds.element_spec),
-        shapes=tree.map_structure(lambda x: x.shape, template_ds.element_spec),
+        dtypes=tree.map_structure(lambda x: x.dtype, element_spec),
+        shapes=tree.map_structure(lambda x: x.shape, element_spec),
         num_workers_per_iterator=self.num_workers_per_iterator,
         max_samples_per_stream=self.max_samples_per_stream,
         max_in_flight_samples_per_worker=self.max_in_flight_samples_per_worker,
@@ -99,21 +99,10 @@ class DistributedSeqioDatasetFn(seqio.DatasetFnCallable):
 
   seqio_dataset_fn: seqio.DatasetFnCallable = attrs.field(init=True)
 
-  distributed_dataset_fn_factory: Callable[[str], DistributedDatasetFn] = (
-      attrs.field(default=DistributedDatasetFn)
-  )
-
   def __call__(
       self, split: str, shuffle_files: bool, seed: Optional[int] = None
   ) -> tf.data.Dataset:
-    original_dataset = self.seqio_dataset_fn(split, shuffle_files, seed)
+    ds = self.seqio_dataset_fn(split, shuffle_files, seed)
     if DISABLE_REVERB.value:
-      return original_dataset
-
-    distributed_dataset_fn = self.distributed_dataset_fn_factory(split)
-    return distributed_dataset_fn(original_dataset)
-
-  # TODO: Previously fixed compatibility w/ SeqIO. Is it still needed?
-  @property
-  def __name__(self):
-    return 'DistributedSeqioDatasetFn'
+      return ds
+    return DistributedDatasetFn(table_name=split)(ds.element_spec)
