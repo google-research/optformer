@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import random
 
 import numpy as np
 from optformer.vizier.data import augmenters
@@ -106,14 +107,12 @@ class TrialsSorterTest(absltest.TestCase):
     trial2 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.3}))
     trial3 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 1.0}))
 
-    self.study = vz.ProblemAndTrials(
-        problem=problem, trials=[trial1, trial2, trial3]
-    )
+    self.study = vz.ProblemAndTrials(problem, trials=[trial1, trial2, trial3])
 
   def test_e2e(self):
     new_study = augmenters.TrialsSorter().augment_study(self.study)
     metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pytype:disable=attribute-error
-    self.assertEqual(metrics, [0.3, 0.5, 1.0])
+    self.assertEqual(metrics, [1.0, 0.5, 0.3])
 
 
 class ParetoRankSortAndSubsampleTest(absltest.TestCase):
@@ -125,30 +124,23 @@ class ParetoRankSortAndSubsampleTest(absltest.TestCase):
     )
     study = vz.ProblemAndTrials(problem=problem)
     for i in range(100):
-      study.trials.append(
-          vz.Trial(
-              parameters={'x': i},
-              final_measurement=vz.Measurement(metrics={'loss': i}),
-          )
-      )
+      measurement = vz.Measurement(metrics={'loss': i})
+      trial = vz.Trial(parameters={'x': i}, final_measurement=measurement)
+      study.trials.append(trial)
+    random.shuffle(study.trials)
 
-    shuffled_trials = np.asarray(study.trials)
-    np.random.shuffle(shuffled_trials)
-    study.trials[:] = shuffled_trials.tolist()
-
-    new_study = augmenters.ParetoRankSortAndSubsample(
-        num_trials=[10]
-    ).augment_study(study)
+    augmenter = augmenters.ParetoRankSortAndSubsample(num_trials=[10])
+    new_study = augmenter.augment_study(study)
 
     self.assertSequenceEqual(
         [t.parameters.as_dict()['x'] for t in new_study.trials],
         np.flip(np.linspace(0, 99, 10)).astype(np.int_).tolist(),
     )
-
     self.assertTrue(study.problem.metadata['N'], 10)
 
   def test_multi_objectives(self):
-    ...
+    # TODO: Finish.
+    pass
 
 
 class TrialsSubsamplerTest(absltest.TestCase):

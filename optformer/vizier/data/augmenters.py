@@ -18,7 +18,7 @@ import abc
 import hashlib
 import json
 import random
-from typing import Any, MutableSequence, Optional, Sequence, TypeVar
+from typing import MutableSequence, Optional, Sequence, TypeVar
 
 import attrs
 import numpy as np
@@ -123,7 +123,9 @@ class TrialsPermuter(VizierAugmenter[MutableSequence[vz.Trial]]):
 
 
 def _pareto_argsort(
-    metrics: vz.MetricsConfig, trials: Sequence[vz.Trial], seed: Any = None
+    metrics: vz.MetricsConfig,
+    trials: Sequence[vz.Trial],
+    seed: Optional[int] = None,
 ) -> tuple[np.ndarray, np.ndarray]:
   """Argsort the trials by pareto rank. Does not support safe metrics yet.
 
@@ -143,19 +145,17 @@ def _pareto_argsort(
     raise ValueError('Requires at least one objective metric.')
   if metrics.of_type(vz.MetricType.SAFETY):
     raise ValueError('Cannot work with safe metrics.')
-  problem = vz.ProblemStatement()
-  problem.metric_information = metrics
+
+  problem = vz.ProblemStatement(metric_information=metrics)
   converter = converters.TrialToArrayConverter.from_study_config(
       problem, flip_sign_for_minimization_metrics=True, dtype=np.float32
   )
   labels = converter.to_labels(trials)
 
   if len(metrics) == 1:
-    # Single metric: Sort and take top N. Highest means best.
     # For single objectives, rank is simply the order.
     ranks = np.arange(len(trials))
-    # np.argsort sorts in ascending order.
-    sorted_idx = np.argsort(-labels.squeeze())
+    sorted_idx = np.argsort(labels.squeeze())
     return sorted_idx, ranks
   else:
     rng = np.random.RandomState(seed)
@@ -164,7 +164,7 @@ def _pareto_argsort(
     return sorted_idx, ranks[sorted_idx]
 
 
-@attrs.define
+@attrs.define(kw_only=True)
 class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
   """Permutes the trials ordering by pareto rank and subsample them.
 
@@ -173,8 +173,8 @@ class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
 
   It also populates study's `metadata['N']` to be `num_trials`.
 
-  A model trained with this augmenter cannot predict measurements but can
-  generate suggestions by following these steps:
+  A model trained with this augmenter can generate suggestions by following
+  these steps:
     1. Given a study, sort the trials from worst to best
     2. Set the problem statement's `metadata['N']` to be the smallest
       value among `self.num_trials` that exceeds the current trial count.
@@ -182,14 +182,13 @@ class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
 
   Attributes:
     num_trials:
-    seed: If set to not None, this augmenter is idempotent. TODO:
-      Reject None.
+    seed: If not None, this augmenter is idempotent.
   """
 
   num_trials: Sequence[int] = attrs.field(
-      default=(1, 50, 100, 150, 200, 250, 300), kw_only=True
+      default=(1, 50, 100, 150, 200, 250, 300),
   )
-  seed: Optional[int] = attrs.field(init=True, kw_only=True, default=None)
+  seed: Optional[int] = attrs.field(default=None)
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     return self.augment_study(study)
@@ -197,16 +196,10 @@ class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     study = TrialsSorter().augment_study(study)
     sampler = TrialsSubsampler(num_trials=self.num_trials, seed=self.seed)
-    study = sampler.augment_study(study)
-
-    # Reverse so that worst trials come first.
-    study.trials.reverse()
-    # Remove the metric configs. We won't need them.
-    study.problem.metric_information = vz.MetricsConfig()
-    return study
+    return sampler.augment_study(study)
 
 
-@attrs.define
+@attrs.define(kw_only=True)
 class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
   """Subsample the Trials.
 
@@ -216,19 +209,16 @@ class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
   Attributes:
     num_trials:
     skip_rate: Sets num_trials to the len(study.trials) / skip_rate.
-    seed: If set to not None, this augmenter is idempotent. TODO:
-      Reject None.
+    seed: If not None, this augmenter is idempotent. TODO: Reject None.
   """
 
-  num_trials: Optional[Sequence[int]] = attrs.field(default=None, kw_only=True)
+  num_trials: Optional[Sequence[int]] = attrs.field(default=None)
   skip_rate: Optional[float] = attrs.field(
-      init=True,
-      kw_only=True,
       default=None,
       validator=attrs.validators.optional(attrs.validators.ge(1.0)),
   )
-  metadata_name: str = attrs.field(init=True, kw_only=True, default='N')
-  seed: Optional[int] = attrs.field(init=True, kw_only=True, default=None)
+  metadata_name: str = attrs.field(default='N')
+  seed: Optional[int] = attrs.field(default=None)
 
   def __attrs_post_init__(self):
     if self.num_trials is None and self.skip_rate is None:
@@ -241,12 +231,12 @@ class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
 
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     if self.skip_rate:
-      self.num_trials = [int(len(study.trials) / self.skip_rate)]
-    rng = np.random.RandomState(self.seed)
-    n = rng.choice(self.num_trials)
+      num_trials = [int(len(study.trials) / self.skip_rate)]
+    else:
+      num_trials = self.num_trials
 
+    n = np.random.RandomState(self.seed).choice(num_trials)
     if n < len(study.trials):
-      # Start from 0 so that the best trial is always included.
       # TODO: For multi-objective, we should take all rank 0 trials.
       indices = np.linspace(0, len(study.trials) - 1, n).astype(np.int_)
       study.trials[:] = np.asarray(study.trials)[indices].tolist()
@@ -317,14 +307,13 @@ class IncompleteTrialRemover(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
 
 
 class TrialsSorter(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
-  """Sort a study's trials from best to worst."""
+  """Sort a study's trials from worst to best (based on metric goal)."""
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     sorted_idx, _ = _pareto_argsort(
         study.problem.metric_information, study.trials
     )
-    sorted_trials = np.asarray(study.trials)[sorted_idx]
-    study.trials[:] = sorted_trials
+    study.trials[:] = np.asarray(study.trials)[sorted_idx]
     return study
 
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
