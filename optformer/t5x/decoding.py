@@ -16,13 +16,15 @@
 
 import abc
 from typing import Optional
-
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int  # pylint: disable=g-multiple-import,g-importing-member
 from optformer.common.inference import sequence_utils as seq_utils
 from t5x import decoding
 
 
+# TODO: Due to a bug, `state.step` and `state.cur_index` both start at 0
+# at the very beginning of the sequence, regardless of prompting. Ideally,
+# `shift` should no longer be an argument and should just be `state.step`.
 class IndexLogitRestrictor(decoding.LogitCallbackFn):
   """Restricts logit values depending only on the index."""
 
