@@ -136,7 +136,7 @@ class ParetoRankSortAndSubsampleTest(absltest.TestCase):
         [t.parameters.as_dict()['x'] for t in new_study.trials],
         np.flip(np.linspace(0, 99, 10)).astype(np.int_).tolist(),
     )
-    self.assertTrue(study.problem.metadata['N'], 10)
+    self.assertTrue(study.problem.metadata['N'], '10')
 
   def test_multi_objectives(self):
     # TODO: Finish.

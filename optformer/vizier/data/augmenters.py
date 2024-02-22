@@ -235,7 +235,7 @@ class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
     else:
       num_trials = self.num_trials
 
-    n = np.random.RandomState(self.seed).choice(num_trials)
+    n: int = np.random.RandomState(self.seed).choice(num_trials)
     if n < len(study.trials):
       # TODO: For multi-objective, we should take all rank 0 trials.
       indices = np.linspace(0, len(study.trials) - 1, n).astype(np.int_)
@@ -247,7 +247,7 @@ class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
         raise ValueError(
             f'Duplicate metadata name as subsampling {self.metadata_name}'
         )
-      study.problem.metadata[self.metadata_name] = n
+      study.problem.metadata[self.metadata_name] = str(n)
     return study
 
 
