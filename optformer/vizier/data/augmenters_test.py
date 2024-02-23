@@ -103,16 +103,27 @@ class TrialsSorterTest(absltest.TestCase):
     m = vz.MetricInformation(name='m', goal=vz.ObjectiveMetricGoal.MINIMIZE)
     problem = vz.ProblemStatement(metric_information=[m])
 
-    trial1 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.5}))
-    trial2 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.3}))
-    trial3 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 1.0}))
+    trial1 = vz.Trial(
+        id=1, final_measurement=vz.Measurement(metrics={'m': 0.5})
+    )
+    trial2 = vz.Trial(
+        id=2, final_measurement=vz.Measurement(metrics={'m': 0.3})
+    )
+    trial3 = vz.Trial(
+        id=3, final_measurement=vz.Measurement(metrics={'m': 1.0})
+    )
 
     self.study = vz.ProblemAndTrials(problem, trials=[trial1, trial2, trial3])
 
   def test_e2e(self):
     new_study = augmenters.TrialsSorter().augment_study(self.study)
-    metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pytype:disable=attribute-error
-    self.assertEqual(metrics, [1.0, 0.5, 0.3])
+    ids = [t.id for t in new_study.trials]
+    self.assertEqual(ids, [2, 1, 3])
+
+  def test_e2e_reverse(self):
+    new_study = augmenters.TrialsSorter(reverse=True).augment_study(self.study)
+    ids = [t.id for t in new_study.trials]
+    self.assertEqual(ids, [3, 1, 2])
 
 
 class ParetoRankSortAndSubsampleTest(absltest.TestCase):
@@ -125,15 +136,15 @@ class ParetoRankSortAndSubsampleTest(absltest.TestCase):
     study = vz.ProblemAndTrials(problem=problem)
     for i in range(100):
       measurement = vz.Measurement(metrics={'loss': i})
-      trial = vz.Trial(parameters={'x': i}, final_measurement=measurement)
+      trial = vz.Trial(id=i, parameters={'x': i}, final_measurement=measurement)
       study.trials.append(trial)
     random.shuffle(study.trials)
 
-    augmenter = augmenters.ParetoRankSortAndSubsample(num_trials=[10])
+    augmenter = augmenters.ParetoRankReverseSortAndSubsample(num_trials=[10])
     new_study = augmenter.augment_study(study)
 
     self.assertSequenceEqual(
-        [t.parameters.as_dict()['x'] for t in new_study.trials],
+        [t.id for t in new_study.trials],
         np.flip(np.linspace(0, 99, 10)).astype(np.int_).tolist(),
     )
     self.assertTrue(study.problem.metadata['N'], '10')
@@ -145,23 +156,24 @@ class ParetoRankSortAndSubsampleTest(absltest.TestCase):
 
 class TrialsSubsamplerTest(absltest.TestCase):
 
-  def test_skip_rate(self):
+  def test_e2e(self):
     problem = vz.ProblemStatement()
     problem.metric_information.append(
         vz.MetricInformation(name='loss', goal=vz.ObjectiveMetricGoal.MINIMIZE)
     )
-    study = vz.ProblemAndTrials(problem=problem)
+    trials = []
     for i in range(100):
       measurement = vz.Measurement(metrics={'loss': i})
-      trial = vz.Trial(parameters={'x': i}, final_measurement=measurement)
-      study.trials.append(trial)
+      trial = vz.Trial(id=i, parameters={'x': i}, final_measurement=measurement)
+      trials.append(trial)
 
+    study = vz.ProblemAndTrials(problem=problem, trials=trials)
     new_study = augmenters.TrialsSubsampler(
-        skip_rate=2.0,
+        num_trials=[50],
     ).augment_study(study)
 
     self.assertSequenceEqual(
-        [t.parameters.as_dict()['x'] for t in new_study.trials],
+        [t.id for t in new_study.trials],
         np.linspace(0, 99, 50).astype(np.int_).tolist(),
     )
     self.assertTrue(study.problem.metadata['N'], 50)

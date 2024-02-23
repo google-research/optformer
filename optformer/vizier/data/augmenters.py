@@ -125,7 +125,9 @@ class TrialsPermuter(VizierAugmenter[MutableSequence[vz.Trial]]):
 def _pareto_argsort(
     metrics: vz.MetricsConfig,
     trials: Sequence[vz.Trial],
+    *,
     seed: Optional[int] = None,
+    reverse: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
   """Argsort the trials by pareto rank. Does not support safe metrics yet.
 
@@ -133,6 +135,7 @@ def _pareto_argsort(
     metrics:
     trials:
     seed: Seed for breaking ties. (Does not yet work for single objectives)
+    reverse: If True, sorted list goes from worst (highest pareto rank) to best.
 
   Returns:
     Sorted indices for `trials` and the pareto rank of the corresponding trials.
@@ -151,25 +154,28 @@ def _pareto_argsort(
       problem, flip_sign_for_minimization_metrics=True, dtype=np.float32
   )
   labels = converter.to_labels(trials)
+  if reverse:
+    labels = -labels
 
   if len(metrics) == 1:
     # For single objectives, rank is simply the order.
     ranks = np.arange(len(trials))
-    sorted_idx = np.argsort(labels.squeeze())
+    sorted_idx = np.argsort(-labels.squeeze())
     return sorted_idx, ranks
   else:
     rng = np.random.RandomState(seed)
     ranks = xla_pareto.pareto_rank(labels)
+    # Add uniform noise to break ties.
     sorted_idx = np.argsort(ranks + rng.uniform(0, 1, ranks.shape))
     return sorted_idx, ranks[sorted_idx]
 
 
 @attrs.define(kw_only=True)
-class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
-  """Permutes the trials ordering by pareto rank and subsample them.
+class ParetoRankReverseSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
+  """Sorts the trials by reverse pareto rank and subsample them.
 
   This augmenter subsamples `num_trials` trials such that their pareto ranks
-  form a non-decreasing sequence (i.e. ordered by worst to best).
+  form a non-increasing sequence (i.e. ordered by worst to best).
 
   It also populates study's `metadata['N']` to be `num_trials`.
 
@@ -194,7 +200,7 @@ class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
     return self.augment_study(study)
 
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
-    study = TrialsSorter().augment_study(study)
+    study = TrialsSorter(reverse=True).augment_study(study)
     sampler = TrialsSubsampler(num_trials=self.num_trials, seed=self.seed)
     return sampler.augment_study(study)
 
@@ -203,37 +209,23 @@ class ParetoRankSortAndSubsample(VizierAugmenter[vz.ProblemAndTrials]):
 class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
   """Subsample the Trials.
 
-  Either subsamples `num_trials` trials or if skip rate is provided, uses the
-  skip rate to determine num_trials.
-
   Attributes:
     num_trials:
-    skip_rate: Sets num_trials to the len(study.trials) / skip_rate.
     seed: If not None, this augmenter is idempotent. TODO: Reject None.
   """
 
-  num_trials: Optional[Sequence[int]] = attrs.field(default=None)
-  skip_rate: Optional[float] = attrs.field(
-      default=None,
-      validator=attrs.validators.optional(attrs.validators.ge(1.0)),
-  )
+  num_trials: Sequence[int] = attrs.field()
   metadata_name: str = attrs.field(default='N')
   seed: Optional[int] = attrs.field(default=None)
-
-  def __attrs_post_init__(self):
-    if self.num_trials is None and self.skip_rate is None:
-      raise ValueError('Either num_trials or skip_rate must be provided.')
-    elif self.num_trials is not None and self.skip_rate is not None:
-      raise ValueError('num_trials and skip_rate cannot both be provided.')
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     return self.augment_study(study)
 
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
-    if self.skip_rate:
-      num_trials = [int(len(study.trials) / self.skip_rate)]
-    else:
-      num_trials = self.num_trials
+    """Subsample the trials."""
+    num_trials = [x for x in self.num_trials if x < len(study.trials)]
+    if not num_trials:
+      raise ValueError('Not enough trials to subsample.')
 
     n: int = np.random.RandomState(self.seed).choice(num_trials)
     if n < len(study.trials):
@@ -306,12 +298,17 @@ class IncompleteTrialRemover(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
     return self.augment(study)
 
 
+@attrs.define
 class TrialsSorter(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
-  """Sort a study's trials from worst to best (based on metric goal)."""
+  """Sort a study's trials from best to worst (based on metric goal).
+
+  If reverse is True, sorts from worst to best.
+  """
+  reverse: bool = attrs.field(default=False)
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     sorted_idx, _ = _pareto_argsort(
-        study.problem.metric_information, study.trials
+        study.problem.metric_information, study.trials, reverse=self.reverse
     )
     study.trials[:] = np.asarray(study.trials)[sorted_idx]
     return study
