@@ -83,6 +83,15 @@ class DigitByDigitFloatTokenSerializerTest(parameterized.TestCase):
     )
     self.assertEqual(serializer.to_str(f), serialized)
 
+  def test_all_tokens_used(self):
+    serializer = tokens.DigitByDigitFloatTokenSerializer(exponent_range=2)
+    out = serializer.all_tokens_used()
+
+    signs = ['<+>', '<->']
+    digits = [f'<{i}>' for i in range(0, 10)]
+    exponents = ['<E-2>', '<E-1>', '<E0>', '<E1>', '<E2>']
+    self.assertEqual(list(out), signs + digits + exponents)
+
 
 if __name__ == '__main__':
   absltest.main()

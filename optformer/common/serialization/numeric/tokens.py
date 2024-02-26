@@ -69,16 +69,15 @@ class DigitByDigitFloatTokenSerializer(
       raise ValueError(f'Index {index} out of bounds.')
 
     if index == 0:  # beginning
-      return ordered_set.OrderedSet(self.tokens_serializer.to_str(['+', '-']))
-
+      tokens = [self.tokens_serializer.to_str([s]) for s in ['+', '-']]
     elif index == self.num_tokens_per_obj - 1:  # end
       exps = [
           f'E{i}' for i in range(-self.exponent_range, self.exponent_range + 1)
       ]
-      return ordered_set.OrderedSet(self.tokens_serializer.to_str(exps))
+      tokens = [self.tokens_serializer.to_str([s]) for s in exps]
     else:  # middle (digit)
-      digits = list(range(0, 10))
-      return ordered_set.OrderedSet(self.tokens_serializer.to_str(digits))
+      tokens = [self.tokens_serializer.to_str([s]) for s in range(0, 10)]
+    return ordered_set.OrderedSet(tokens)
 
   @property
   def _max_abs_val(self) -> float:

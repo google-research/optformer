@@ -52,8 +52,10 @@ class EarlyStoppingFinetuner(Generic[_D]):
 
   batch_per_tpu: Optional[int] = attrs.field(default=4)  # TPU memory limit
 
+  _num_microbatches = attrs.field(init=False)
+
   def __attrs_post_init__(self):
-    self.num_microbatches = (
+    self._num_microbatches = (
         self.batch_size // self.batch_per_tpu if self.batch_per_tpu else None
     )
 
@@ -90,7 +92,7 @@ class EarlyStoppingFinetuner(Generic[_D]):
             learning_rate=jnp.array(self.learning_rate),
             dropout_rng=subkey,
             model=self.model,
-            num_microbatches=self.num_microbatches,
+            num_microbatches=self._num_microbatches,
         )
 
     return state

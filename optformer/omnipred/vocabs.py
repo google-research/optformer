@@ -14,6 +14,7 @@
 
 """Omnipred-specific vocabulary."""
 
+import functools
 from optformer.common.data import vocabs
 from optformer.common.serialization import numeric
 
@@ -40,5 +41,10 @@ class FloatMetricVocabulary(vocabs.HybridVocabulary[float]):
 
   @property
   def decode_length(self) -> int:
-    """Expected decode length, noting initial 329 token ID is always used."""
+    """Expected decode length, noting initial token ID is always used."""
     return self._deserializer.num_tokens_per_obj + 1
+
+  @functools.cached_property
+  def initial_token_id(self) -> int:
+    s = ''.join(list(self._deserializer.all_tokens_used()))
+    return self.encode(s)[0]

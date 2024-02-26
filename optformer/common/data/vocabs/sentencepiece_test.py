@@ -35,12 +35,17 @@ def _decode_tf(vocab, tokens):
 class SentencePieceTest(absltest.TestCase):
 
   def test_extra_tokens(self):
-    extra_tokens = ("hello", "goodbye")
+    extra_tokens = ("hello", "goodbye", "<5>")
     vocab = sentencepiece.SentencePieceVocabulary(
         sentencepiece.VOCAB_TEST_MODEL_FILE, extra_tokens=extra_tokens
     )
     # Original length is 26.
     self.assertEqual(26 + len(extra_tokens), vocab.vocab_size)
+
+    # initial token id 3 appears with custom tokens.
+    self.assertEqual(vocab.encode(""), [])
+    self.assertEqual(vocab.encode("<5>"), [3, 28])
+    self.assertEqual(vocab.encode("hello"), [3, 26])
 
     self.assertEqual("", vocab.decode([3]))  # Empty string.
     self.assertEqual("v", vocab.decode([25]))

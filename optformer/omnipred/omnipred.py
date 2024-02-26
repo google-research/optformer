@@ -22,6 +22,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
+from optformer.common.data import datasets
 from optformer.omnipred import vocabs
 from optformer.t5x import decoding
 from optformer.t5x import inference
@@ -31,14 +32,14 @@ from optformer.t5x import inference
 class _OmniPredLogitRestrictor(decoding.IndexLogitRestrictor):
   """Forces decoding of only necessary float tokens."""
 
-  INIT_TOKEN_ID = 329
-
   vocab: vocabs.FloatMetricVocabulary = attrs.field(init=True)
   _logits_masks: Float[Array, 'L V'] = attrs.field(init=False)
 
   def __attrs_post_init__(self):
     logits_masks = np.zeros((self.vocab.decode_length, self.vocab.vocab_size))
-    logits_masks[0, self.INIT_TOKEN_ID] = 1.0  # Initial 329 token always used.
+
+    # Deal with initial token always used.
+    logits_masks[0, self.vocab.initial_token_id] = 1.0
 
     # Only turns on index-dependent custom tokens representing floats.
     for i in range(self.vocab.deserializer.num_tokens_per_obj):  # pytype:disable=attribute-error
@@ -55,7 +56,7 @@ class _OmniPredLogitRestrictor(decoding.IndexLogitRestrictor):
 _T = TypeVar('_T')
 
 
-@attrs.define(init=True)
+@attrs.define
 class OmniPred(Generic[_T]):
   """Predicts tokens representing a float."""
 
@@ -68,12 +69,18 @@ class OmniPred(Generic[_T]):
       kw_only=True, factory=lambda: jax.random.PRNGKey(42)
   )
 
+  _jit_predict_batch_with_aux = attrs.field(init=False)
+  _dataset_fn = attrs.field(init=False)
+
   def __attrs_post_init__(self):
     # Setup logit restriction.
     logit_callback_fn = _OmniPredLogitRestrictor(self._vocab)
     predict_batch_with_aux = functools.partial(
         self.inference_config.model.predict_batch_with_aux,
-        decoder_params={'logit_callback_fn': logit_callback_fn},
+        decoder_params={
+            'max_decode_steps': self._vocab.decode_length,
+            'logit_callback_fn': logit_callback_fn,
+        },
     )
 
     # jit `EncoderDecoderModel` functions.
@@ -117,3 +124,7 @@ class OmniPred(Generic[_T]):
   def _vocab(self) -> vocabs.FloatMetricVocabulary:
     vocab = self.inference_config.model.output_vocabulary
     return typing.cast(vocabs.FloatMetricVocabulary, vocab)
+
+  @property
+  def dataset_fn(self) -> datasets.E2EInferenceDatasetFn[_T]:
+    return self._dataset_fn
