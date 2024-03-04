@@ -29,7 +29,7 @@ from t5x import train_state as train_state_lib
 
 
 def initial_train_state(
-    model: models.BaseTransformerModel,
+    model: models.BaseTransformerModel, seed: int = 42
 ) -> train_state_lib.FlaxOptimTrainState:
   """Gives an initial train state.
 
@@ -38,13 +38,14 @@ def initial_train_state(
 
   Args:
     model: T5X Model.
+    seed: RNG seed.
 
   Returns:
     Initial flax optimizer state.
   """
 
   model_variables = model.get_initial_variables(
-      rng=jax.random.PRNGKey(42),
+      rng=jax.random.PRNGKey(seed),
       input_shapes={
           'encoder_input_tokens': (1, 2),
           'decoder_input_tokens': (1, 2),

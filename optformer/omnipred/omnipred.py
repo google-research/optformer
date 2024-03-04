@@ -28,11 +28,13 @@ from optformer.t5x import decoding
 from optformer.t5x import inference
 
 
-@attrs.define(auto_attribs=False)
+@attrs.define
 class _OmniPredLogitRestrictor(decoding.IndexLogitRestrictor):
   """Forces decoding of only necessary float tokens."""
 
   vocab: vocabs.FloatMetricVocabulary = attrs.field(init=True)
+
+  # Determined after init.
   _logits_masks: Float[Array, 'L V'] = attrs.field(init=False)
 
   def __attrs_post_init__(self):
@@ -69,6 +71,7 @@ class OmniPred(Generic[_T]):
       kw_only=True, factory=lambda: jax.random.PRNGKey(42)
   )
 
+  # Determined after init.
   _jit_predict_batch_with_aux = attrs.field(init=False)
   _dataset_fn = attrs.field(init=False)
 
@@ -83,12 +86,13 @@ class OmniPred(Generic[_T]):
         },
     )
 
-    # jit `EncoderDecoderModel` functions.
+    # jit the decoding function.
     self._jit_predict_batch_with_aux = jax.jit(
         predict_batch_with_aux,
         static_argnames=['return_all_decodes', 'num_decodes'],
     )
 
+    # For converting objects to tensors.
     self._dataset_fn = self.inference_config.get_dataset_fn(
         self.max_inputs_length, self._vocab.decode_length
     )
