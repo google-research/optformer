@@ -106,3 +106,7 @@ class DistributedSeqioDatasetFn(seqio.DatasetFnCallable):
     if DISABLE_REVERB.value:
       return ds
     return DistributedDatasetFn(table_name=split)(ds.element_spec)
+
+  def __name__(self):
+    # Seqio registry requires the __name__.
+    return 'DistributedSeqioDatasetFn'
