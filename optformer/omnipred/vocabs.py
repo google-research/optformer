@@ -15,6 +15,7 @@
 """Omnipred-specific vocabulary."""
 
 import functools
+from typing import Optional
 from optformer.common.data import vocabs
 from optformer.common.serialization import numeric
 
@@ -25,8 +26,11 @@ class FloatMetricVocabulary(vocabs.HybridVocabulary[float]):
   def __init__(
       self,
       sentencepiece_model_file: str,
-      deserializer: numeric.DigitByDigitFloatTokenSerializer,
+      deserializer: Optional[numeric.DigitByDigitFloatTokenSerializer] = None,
   ):
+
+    if deserializer is None:
+      deserializer = numeric.DigitByDigitFloatTokenSerializer()
 
     super().__init__(
         sentencepiece_model_file,

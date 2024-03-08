@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from optformer.common.data import vocabs as common_vocabs
-from optformer.common.serialization import numeric
 from optformer.omnipred import omnipred
 from optformer.omnipred import serialization
 from optformer.omnipred import vocabs
@@ -36,8 +35,7 @@ class OmnipredTest(absltest.TestCase):
     )
     # Embedding table can be larger than actual vocab size.
     self.vocab = vocabs.FloatMetricVocabulary(
-        common_vocabs.VOCAB_TEST_MODEL_FILE,
-        numeric.DigitByDigitFloatTokenSerializer(),
+        common_vocabs.VOCAB_TEST_MODEL_FILE
     )
     self.num_embeddings = self.vocab.vocab_size + 5
 
