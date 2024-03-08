@@ -107,6 +107,7 @@ class DistributedSeqioDatasetFn(seqio.DatasetFnCallable):
       return ds
     return DistributedDatasetFn(table_name=split)(ds.element_spec)
 
+  @property
   def __name__(self):
     # Seqio registry requires the __name__.
     return 'DistributedSeqioDatasetFn'
