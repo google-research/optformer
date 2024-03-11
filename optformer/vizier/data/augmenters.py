@@ -251,6 +251,28 @@ class TrialsSubsampler(VizierAugmenter[vz.ProblemAndTrials]):
     return study
 
 
+@attrs.define(kw_only=True)
+class BestTrialOnly(VizierAugmenter[vz.ProblemAndTrials]):
+  """Removes all trials except for the best trial."""
+
+  remember_length: bool = attrs.field(default=False)
+
+  def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    if self.remember_length:
+      study.problem.metadata['original_length'] = str(len(study.trials))
+
+    sorted_idx, _ = _pareto_argsort(
+        study.problem.metric_information, study.trials
+    )
+    best_idx = sorted_idx[-1]
+    study.trials[:] = [study.trials[best_idx]]
+
+    return study
+
+  def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    return self.augment(study)
+
+
 @attrs.define
 class RemoveStudyMetadata(VizierIdempotentAugmenter[vz.ProblemStatement]):
   """Remove all study-level metadata from the ProblemStatement."""

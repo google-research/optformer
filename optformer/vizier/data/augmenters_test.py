@@ -20,6 +20,7 @@ from optformer.vizier.data import augmenters
 from vizier import pyvizier as vz
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 
 class SearchSpacePermuterTest(absltest.TestCase):
@@ -96,23 +97,27 @@ class IncompleteTrialRemoverTest(absltest.TestCase):
       self.assertEqual(t.status, vz.TrialStatus.COMPLETED)
 
 
-class TrialsSorterTest(absltest.TestCase):
+class TrialsSorterTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
-    m = vz.MetricInformation(name='m', goal=vz.ObjectiveMetricGoal.MINIMIZE)
-    problem = vz.ProblemStatement(metric_information=[m])
-
     trial1 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.5}))
     trial2 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.3}))
     trial3 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 1.0}))
+    self.trials = [trial1, trial2, trial3]
 
-    self.study = vz.ProblemAndTrials(problem, trials=[trial1, trial2, trial3])
+  @parameterized.parameters(
+      dict(goal=vz.ObjectiveMetricGoal.MAXIMIZE, expected=[0.3, 0.5, 1.0]),
+      dict(goal=vz.ObjectiveMetricGoal.MINIMIZE, expected=[1.0, 0.5, 0.3]),
+  )
+  def test_e2e(self, goal: vz.ObjectiveMetricGoal, expected: list[float]):
+    m = vz.MetricInformation(name='m', goal=goal)
+    problem = vz.ProblemStatement(metric_information=[m])
+    study = vz.ProblemAndTrials(problem, trials=self.trials)
 
-  def test_e2e(self):
-    new_study = augmenters.TrialsSorter().augment_study(self.study)
+    new_study = augmenters.TrialsSorter().augment_study(study)
     metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pytype:disable=attribute-error
-    self.assertEqual(metrics, [1.0, 0.5, 0.3])
+    self.assertEqual(metrics, expected)
 
 
 class ParetoRankSortAndSubsampleTest(absltest.TestCase):
@@ -141,6 +146,30 @@ class ParetoRankSortAndSubsampleTest(absltest.TestCase):
   def test_multi_objectives(self):
     # TODO: Finish.
     pass
+
+
+class BestTrialOnlyTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    trial1 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.5}))
+    trial2 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 0.3}))
+    trial3 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 1.0}))
+    self.trials = [trial1, trial2, trial3]
+
+  @parameterized.parameters(
+      dict(goal=vz.ObjectiveMetricGoal.MAXIMIZE, expected=1.0),
+      dict(goal=vz.ObjectiveMetricGoal.MINIMIZE, expected=0.3),
+  )
+  def test_e2e(self, goal: vz.ObjectiveMetricGoal, expected: float):
+    m = vz.MetricInformation(name='m', goal=goal)
+    problem = vz.ProblemStatement(metric_information=[m])
+    study = vz.ProblemAndTrials(problem, trials=self.trials)
+
+    new_study = augmenters.BestTrialOnly().augment_study(study)
+    self.assertLen(new_study.trials, 1)
+    metric = new_study.trials[0].final_measurement.metrics['m'].value  # pytype:disable=attribute-error
+    self.assertEqual(metric, expected)
 
 
 class TrialsSubsamplerTest(absltest.TestCase):
