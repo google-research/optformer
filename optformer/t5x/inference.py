@@ -96,6 +96,7 @@ class InferenceConfig(Generic[_T]):
     featurizer_ref = gin.query_parameter('%EVAL_FEATURIZER')
     featurizer = featurizer_ref.scoped_configurable_fn()
 
+    # NOTE: This requires `use_orbax=False` checkpoint formats.
     checkpoint = checkpoints_lib.load_t5x_checkpoint(
         gin.query_parameter('%MODEL_DIR'),
         step=step,
