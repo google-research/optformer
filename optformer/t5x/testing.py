@@ -14,6 +14,7 @@
 
 """Testing utilities to make life easier."""
 
+import functools
 from typing import Optional
 import seqio
 from t5x import adafactor
@@ -42,5 +43,11 @@ def small_encoder_decoder(
       input_vocabulary=vocab,
       output_vocabulary=vocab,
       optimizer_def=adafactor.Adafactor(),
-      decode_fn=decoding.temperature_sample,
+      decode_fn=functools.partial(
+          decoding.temperature_sample,
+          topk=0,
+          topp=0.0,
+          temperature=1.0,
+          rescale_log_probs=True,
+      ),
   )

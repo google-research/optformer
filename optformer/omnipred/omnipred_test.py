@@ -55,7 +55,7 @@ class OmnipredTest(absltest.TestCase):
     )
 
   def test_predict(self):
-    self.assertEqual(self.regressor.predict(self.study), 6060000000.0)
+    self.assertEqual(self.regressor.predict(self.study), 4.861e-07)
 
   def test_finetune(self):
     finetuner = finetuning.EarlyStoppingFinetuner(
@@ -70,7 +70,7 @@ class OmnipredTest(absltest.TestCase):
     self.inference_config.train_state = finetuner.finetune(
         3 * [self.study], 3 * [self.study], self.inference_config.train_state
     )
-    self.assertEqual(self.regressor.predict(self.study), 599900000000.0)
+    self.assertEqual(self.regressor.predict(self.study), 5.831e-07)
 
 
 if __name__ == '__main__':
