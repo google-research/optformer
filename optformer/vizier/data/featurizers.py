@@ -51,11 +51,10 @@ class VizierStudyFeaturizer(featurizers.Featurizer[vz.ProblemAndTrials]):
   _require_idempotent_augmenters = attrs.field(default=False, kw_only=True)
 
   _study_filters: Sequence[filters.Filter[vz.ProblemAndTrials]] = attrs.field(
-      default=tuple(),
-      kw_only=True,
+      factory=tuple, kw_only=True
   )
   _features_filters: Sequence[filters.Filter[dict[str, tf.Tensor]]] = (
-      attrs.field(default=tuple(), kw_only=True)
+      attrs.field(factory=tuple, kw_only=True)
   )
 
   def __attrs_post_init__(self):
