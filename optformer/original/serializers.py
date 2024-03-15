@@ -24,7 +24,7 @@ import numpy as np
 from optformer.common import serialization as s_lib
 from optformer.original import numeric
 from optformer.validation import runtime
-from optformer.vizier.serialization import tokens as vz_tokens_lib
+from optformer.vizier import serialization as vs_lib
 from vizier import pyvizier as vz
 from vizier._src.pyvizier.shared import parameter_iterators as pi
 from vizier.pyvizier import converters
@@ -391,7 +391,7 @@ class QuantizedTrialsSerializer(s_lib.Serializer[vz.ProblemAndTrials]):
               for metric in study.problem.metric_information
           },
       )
-      trial_serializer = vz_tokens_lib.TrialTokenSerializer(
+      trial_serializer = vs_lib.TrialTokenSerializer(
           suggestion_serializer=suggestion_serializer,
           measurement_serializer=measurement_serializer,
       )
@@ -420,3 +420,13 @@ class RandomizedQuantizedTrialsSerializerFactory(
   ) -> s_lib.Serializer[vz.ProblemAndTrials]:
     interval = self.interval_sampler(seed=seed)
     return QuantizedTrialsSerializer(objective_target_interval=interval)
+
+
+@attrs.define
+class ProblemStudySerializer(s_lib.Serializer[vz.ProblemAndTrials]):
+  problem_serializer: s_lib.Serializer[vz.ProblemStatement] = attrs.field(
+      factory=vs_lib.ProblemSerializer
+  )
+
+  def to_str(self, study: vz.ProblemAndTrials, /) -> str:
+    return self.problem_serializer.to_str(study.problem)

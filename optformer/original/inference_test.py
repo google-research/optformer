@@ -213,9 +213,9 @@ class InferencerTest(parameterized.TestCase):
     # Makes sense; first two params are DOUBLE, third is INTEGER bound,
     # last are CATEGORICAL / DISCRETE w/ few feasible values.
     expected = [
-        [211, 836, 440, 1, 0, 1, 0, 0],
-        [67, 412, 727, 0, 0, 0, 2, 1],
-        [719, 994, 343, 0, 0, 0, 0, 0],
+        [211, 836, 440, 1, 1, 1, 1, 0],
+        [67, 412, 727, 0, 1, 0, 1, 0],
+        [719, 557, 343, 0, 1, 0, 1, 1],
     ]
     np.testing.assert_array_equal(expected, quantized_values)
 

@@ -15,6 +15,9 @@
 """Public Vizier serializers."""
 
 from optformer.vizier.serialization.metadata import MetadataSerializer
+from optformer.vizier.serialization.problem import MetricsConfigSerializer
+from optformer.vizier.serialization.problem import ProblemSerializer
+from optformer.vizier.serialization.problem import SearchSpaceSerializer
 from optformer.vizier.serialization.tokens import MeasurementTokenSerializer
 from optformer.vizier.serialization.tokens import TrialTokenSerializer
 from optformer.vizier.serialization.trial import DefaultParametersSerializer

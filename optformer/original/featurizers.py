@@ -14,21 +14,19 @@
 
 """Specific featurizers."""
 
-from optformer.common import serialization as s_lib
 from optformer.original import serializers as os_lib
 from optformer.vizier.data import featurizers
-from vizier import pyvizier as vz
 
 
-# TODO: Replace with proper when moved.
-class _DummyInputsSerializer(s_lib.Serializer[vz.ProblemAndTrials]):
-
-  def to_str(self, obj: vz.ProblemAndTrials, /) -> str:
-    return ""
-
-
-def get_eval_featurizer():
+def get_train_featurizer() -> featurizers.VizierStudyFeaturizer:
   return featurizers.VizierStudyFeaturizer(
-      _DummyInputsSerializer,
+      os_lib.ProblemStudySerializer,
+      os_lib.RandomizedQuantizedTrialsSerializerFactory(),
+  )
+
+
+def get_eval_featurizer() -> featurizers.VizierStudyFeaturizer:
+  return featurizers.VizierStudyFeaturizer(
+      os_lib.ProblemStudySerializer,
       lambda: os_lib.QuantizedTrialsSerializer((0.2, 0.8)),
   )
