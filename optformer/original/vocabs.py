@@ -19,6 +19,7 @@ from optformer.common.data import vocabs
 from optformer.original import serializers as os_lib
 from optformer.vizier import serialization as vzs_lib
 
+VOCAB_TEST_MODEL_FILE = vocabs.VOCAB_TEST_MODEL_FILE
 
 _VIZIER_SPECIAL_STRS = (
     os_lib.QuantizedMeasurementSerializer.PENDING,

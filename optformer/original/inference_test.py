@@ -18,7 +18,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from optformer.common.data import datasets
-from optformer.common.data import vocabs as common_vocabs
 from optformer.original import featurizers
 from optformer.original import inference
 from optformer.original import vocabs
@@ -32,8 +31,6 @@ from vizier.testing import test_studies
 from absl.testing import absltest
 from absl.testing import parameterized
 
-_VOCAB_TEST_MODEL_FILE = common_vocabs.VOCAB_TEST_MODEL_FILE
-
 
 class LogitRestrictorsTest(absltest.TestCase):
 
@@ -42,7 +39,7 @@ class LogitRestrictorsTest(absltest.TestCase):
 
     # Vocab can have special strings and embedding table can be larger than
     # actual vocab size.
-    self.vocab = vocabs.QuantizedVocabulary(_VOCAB_TEST_MODEL_FILE)
+    self.vocab = vocabs.QuantizedVocabulary(vocabs.VOCAB_TEST_MODEL_FILE)
     self.num_embeddings = self.vocab.vocab_size + 42
 
     def tokens_to_logits(decoding_state: decoding.DecodingState):
@@ -148,7 +145,7 @@ class InferencerTest(parameterized.TestCase):
 
     # Vocab can have special strings and embedding table can be larger than
     # actual vocab size.
-    self.vocab = vocabs.QuantizedVocabulary(_VOCAB_TEST_MODEL_FILE)
+    self.vocab = vocabs.QuantizedVocabulary(vocabs.VOCAB_TEST_MODEL_FILE)
     self.num_embeddings = self.vocab.vocab_size + 42
 
     self.max_sequence_length = 32

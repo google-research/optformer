@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from optformer.common.data import vocabs as common_vocabs
 from optformer.original import vocabs
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -21,7 +20,7 @@ from absl.testing import parameterized
 class QuantizedVocabTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      (26, common_vocabs.VOCAB_TEST_MODEL_FILE),
+      (26, vocabs.VOCAB_TEST_MODEL_FILE),
   )
   def test_quantized_indices(self, quantized_index: int, vocab_file: str):
     vocab = vocabs.QuantizedVocabulary(vocab_file, num_quantization_bins=10)
@@ -45,7 +44,7 @@ class QuantizedVocabTest(parameterized.TestCase):
     self.assertEqual(9, vocab.decode_to_object([quantized_index + 9]))
 
   @parameterized.parameters(
-      (common_vocabs.VOCAB_TEST_MODEL_FILE,),
+      (vocabs.VOCAB_TEST_MODEL_FILE,),
   )
   def test_equivalence(self, vocab_file: str):
     vocab1 = vocabs.QuantizedVocabulary(vocab_file, num_quantization_bins=10)

@@ -18,7 +18,6 @@ from absl import logging
 from absl.testing import parameterized
 import jax.numpy as jnp
 import numpy as np
-from optformer.common.data import vocabs as common_vocabs
 from optformer.common.inference import sequence_utils as seq_utils
 from optformer.original import algorithms
 from optformer.original import featurizers
@@ -36,7 +35,7 @@ from vizier.testing import test_studies
 from absl.testing import absltest
 
 # NOTE: Some tests don't work with the test vocabulary.
-_VOCAB_TEST_MODEL_FILE = common_vocabs.VOCAB_TEST_MODEL_FILE
+_VOCAB_TEST_MODEL_FILE = vocabs.VOCAB_TEST_MODEL_FILE
 
 
 def _flat_all_param_study() -> vz.ProblemAndTrials:
