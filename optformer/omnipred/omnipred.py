@@ -108,6 +108,7 @@ class OmniPred(Generic[_T]):
         rng=subkey,
         return_all_decodes=True,
         num_decodes=self.num_samples,
+        prompt_with_targets=False,
     )
     return sampled_tokens, aux['scores']
 
