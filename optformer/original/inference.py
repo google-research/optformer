@@ -12,7 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Quantization-based (i.e. relative tokenization) inferencer."""
+"""Quantization-based (i.e. relative tokenization) inferencer.
+
+NOTE: We jit `sample_suggestion_tokens` and `sample_measurement_tokens`
+preemptively so we can change the RNG statefully. We don't worry about exposing
+weights since they're supposed to be frozen. But possible alternative for the
+future:
+
+```
+@struct.dataclass
+class State:
+  weights: jnp.ndarray
+  rng: jnp.ndarray
+
+class EqxState(eqx.Module):
+  weights: PyTree = eqx.field()
+  rng: jnp.ndarray = eqx.field()
+
+class JaxMeasurementInferencer:
+  def sample_measurement_tokens(self, history, state: EqxState or State)
+"""
 
 import functools
 import typing
@@ -47,11 +66,11 @@ class _SuggestionLogitRestrictor(decoding.IndexLogitRestrictor):
   search_space: vz.SearchSpace = attrs.field()
   vocab: vocabs.QuantizedVocabulary = attrs.field()
 
-  _logits_masks: jnp.ndarray = attrs.field(init=False)
+  _logits_masks: Float[Array, "P V"] = attrs.field(init=False)
 
   # Replaces `search_space.num_parameters()` with a fixed constant to avoid
   # re-jitting the __call__ function for different search spaces.
-  MAX_NUM_PARAMETERS: int = 100
+  MAX_NUM_PARAMETERS: int = 100  # P
 
   def __attrs_post_init__(self):
     """Compute the valid quantized value masks for each parameter config."""
@@ -84,11 +103,11 @@ class _MeasurementLogitRestrictor(decoding.IndexLogitRestrictor):
   metrics_config: vz.MetricsConfig = attrs.field()
   vocab: vocabs.QuantizedVocabulary = attrs.field()
 
-  _logits_masks: jnp.ndarray = attrs.field(init=False)
+  _logits_masks: Float[Array, "M V"] = attrs.field(init=False)
 
   # Replaces `len(metric_information)` w/ fixed constant to avoid re-jitting the
   # __call__ function for different metric configs.
-  MAX_NUM_METRICS: int = 100
+  MAX_NUM_METRICS: int = 100  # M
 
   def __attrs_post_init__(self):
     """Compute valid quantized value masks for each metric config."""
@@ -249,6 +268,7 @@ class QuantizedInferencer:
     return sliced, full
 
   # TODO: Fix non-scalar index case.
+  # TODO: Rename to `regress_metric` if needed in future.
   def regress(
       self,
       history: Mapping[str, jnp.ndarray],

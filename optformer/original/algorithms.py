@@ -367,9 +367,7 @@ class VizierOptimizerAlgorithm(QuantizedVizierAlgorithm):
 
   def _tokenize_suggestion_features(self, xs: types.ModelInput) -> jnp.ndarray:
     trials = [vz.Trial(params) for params in self._converter.to_parameters(xs)]
-    studies = [
-        vz.ProblemAndTrials(self.problem, [trial]) for trial in trials
-    ]
+    studies = [vz.ProblemAndTrials(self.problem, [trial]) for trial in trials]
     tokenized_trials = self._studies_to_batch(studies)['decoder_input_tokens']
 
     # Slice to obtain [p1, p2, p3, *]
