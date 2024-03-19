@@ -19,10 +19,12 @@ import numpy as np
 from optformer.common.serialization import base
 
 
+class FloatTextSerializer(base.Serializer[float], base.Deserializer[float]):
+  """Convenient type to denote reversibility."""
+
+
 @attrs.define
-class ScientificFloatTextSerializer(
-    base.Serializer[float], base.Deserializer[float]
-):
+class ScientificFloatTextSerializer(FloatTextSerializer):
   """Represent floats in raw scientific notation.
 
   Meant to be used to fine-tune most pretrained LLMs.
@@ -53,9 +55,7 @@ class ScientificFloatTextSerializer(
 
 
 @attrs.define
-class ExpandedScientificFloatSerializer(
-    base.Serializer[float], base.Deserializer[float]
-):
+class ExpandedScientificFloatSerializer(FloatTextSerializer):
   """Represent floats in a special expanded scientific notation.
 
   Meant to be used to fine-tune most pretrained LLMs. From
@@ -113,9 +113,7 @@ class ExpandedScientificFloatSerializer(
 
 
 @attrs.define
-class SimpleFloatTextSerializer(
-    base.Serializer[float], base.Deserializer[float]
-):
+class SimpleFloatTextSerializer(FloatTextSerializer):
   """Represent floats as simple text."""
 
   precision: int = attrs.field(default=5, kw_only=True)
