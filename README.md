@@ -6,6 +6,10 @@ This codebase is organized by general-purpose library folders and specific-proje
 ### General-Purpose Libraries
 * [**Common Imports**](https://github.com/google-research/optformer/tree/main/optformer/common)
 * [**T5X Modules**](https://github.com/google-research/optformer/tree/main/optformer/t5x)
+* [**PAX Modules**](https://github.com/google-research/optformer/tree/main/optformer/pax)
+
+## Optimization API Wrappers
+* [**Vizier**](https://github.com/google-research/optformer/tree/main/optformer/vizier)
 
 ### Specific Papers and Projects
 * [**Original OptFormer (Chen et al., 2022)**](https://github.com/google-research/optformer/tree/main/optformer/original)
