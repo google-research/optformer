@@ -162,7 +162,6 @@ class RepeatedUnitTokenSerializer(OneToManyTokenSerializer[_V]):
     return self.num_tokens_per_obj * self.unit_token_serializer.from_str(s)
 
 
-# TODO: Use this to refactor `ScientificFloatTokenSerializer`.
 class CartesianProductTokenSerializer(OneToManyTokenSerializer[_V]):
   """Maps an object to a fixed number of tokens based on cartesian product.
 

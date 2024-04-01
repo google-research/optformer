@@ -15,6 +15,7 @@
 """All import vocabularies."""
 
 from optformer.common.data.vocabs.ascii import AsciiVocab
+from optformer.common.data.vocabs.delimited import DelimitedTokenVocabulary
 from optformer.common.data.vocabs.sentencepiece import HybridVocabulary
 from optformer.common.data.vocabs.sentencepiece import SentencePieceVocabulary
 from optformer.common.data.vocabs.sentencepiece import VOCAB_TEST_MODEL_FILE
