@@ -34,18 +34,20 @@ If you found this codebase useful, please consider citing our paper. Thanks!
 
 ```
 @article{omnipred,
-  author     = {Xingyou Song and
-                Oscar Li and
-                Chansoo Lee and
-                Bangding Yang and
-                Daiyi Peng and
-                Sagi Perel and
-                Yutian Chen},
-  title      = {OmniPred: Language Models as Universal Regressors},
-  journal    = {CoRR},
-  volume     = {abs/2205.13320},
-  year       = {2024}
-  eprinttype = {arXiv},
-  eprint     = {2205.13320},
+  author       = {Xingyou Song and
+                  Oscar Li and
+                  Chansoo Lee and
+                  Bangding Yang and
+                  Daiyi Peng and
+                  Sagi Perel and
+                  Yutian Chen},
+  title        = {OmniPred: Language Models as Universal Regressors},
+  journal      = {CoRR},
+  volume       = {abs/2402.14547},
+  year         = {2024},
+  url          = {https://doi.org/10.48550/arXiv.2402.14547},
+  doi          = {10.48550/ARXIV.2402.14547},
+  eprinttype    = {arXiv},
+  eprint       = {2402.14547},
 }
 ```
