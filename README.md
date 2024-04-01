@@ -10,6 +10,7 @@ This codebase is organized by general-purpose library folders and specific-proje
 
 ### Optimization API Wrappers
 * [**Vizier**](https://github.com/google-research/optformer/tree/main/optformer/vizier)
+* [**PyGlove**](https://github.com/google-research/optformer/tree/main/optformer/pyglove)
 
 ### Specific Papers and Projects
 * [**Original OptFormer (Chen et al., 2022)**](https://github.com/google-research/optformer/tree/main/optformer/original)
