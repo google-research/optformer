@@ -184,7 +184,7 @@ class SymbolicRegressionExperimenter(base.PyGloveExperimenter):
       normalized_rmse = np.sqrt(mse) / self._ys_std
       return 1.0 / (1.0 + normalized_rmse)
 
-    except (ZeroDivisionError, OverflowError):
+    except (ZeroDivisionError, OverflowError, ValueError):
       return 0.0
 
   def search_space(self) -> pg.hyper.Evolvable:
