@@ -27,7 +27,7 @@ import tensorflow as tf
 class FeaturizedDatasetFn(base.DatasetFn[tf.data.Dataset]):
   """Featurizes a dataset."""
 
-  featurizer: featurizers.Featurizer
+  featurizer: featurizers.Featurizer = attrs.field()
 
   def __call__(self, source: tf.data.Dataset) -> tf.data.Dataset:
     """Returns dataset processed via a Featurizer.
