@@ -45,7 +45,7 @@ class VizierStudyFeaturizer(featurizers.Featurizer[vz.ProblemAndTrials]):
   # Dedicated augmenters and filters.
   # ---------------------------------------------------------------------------
   _study_augmenters: Sequence[augmenters.VizierAugmenter] = attrs.field(
-      default=tuple(),
+      factory=tuple,
       kw_only=True,
   )
   _require_idempotent_augmenters = attrs.field(default=False, kw_only=True)

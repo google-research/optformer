@@ -302,6 +302,22 @@ def _has_nan(t: vz.Trial, metrics: vz.MetricsConfig) -> bool:
   return np.isnan(metric_vals).any()
 
 
+@attrs.define
+class RandomTrialSlicer(VizierAugmenter[vz.ProblemAndTrials]):
+  """Randomly slices the list of trials uniformly."""
+
+  seed: Optional[int] = attrs.field(default=None)
+
+  def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    num_trials = len(study.trials)
+    new_num_trials = random.Random(self.seed).randint(0, num_trials)
+    study.trials[:] = study.trials[:new_num_trials]
+    return study
+
+  def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    return self.augment(study)
+
+
 @attrs.define(init=True, kw_only=True)
 class IncompleteTrialRemover(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
   """Removes incomplete trials."""

@@ -104,8 +104,6 @@ class FlatSpaceOnly(filters.Filter[vz.ProblemAndTrials]):
   """Checks if the study is flat space."""
 
   def __call__(self, study: vz.ProblemAndTrials) -> bool:
-    # The study should not have conditional parameters.
-    # Note: the current class does not support a conditional search space.
     if study.problem.search_space.is_conditional:
       raise ValueError('Search space is conditional.')
     return True
