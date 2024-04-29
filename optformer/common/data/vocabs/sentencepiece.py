@@ -79,6 +79,7 @@ class SentencePieceVocabulary(seqio.Vocabulary):
             score=score,
             type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
         )
+    logging.info("Loaded tokens: %s", {p.piece: p.score for p in model.pieces})
     self._sp_model: bytes = model.SerializeToString()
 
     with self._load_model_lock:
