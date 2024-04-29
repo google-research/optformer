@@ -23,6 +23,7 @@ from typing import Generic, Iterable, Sequence, TypeVar
 from absl import logging
 from optformer.common import serialization
 import seqio
+from seqio import vocabularies as seqio_vocabularies
 import tensorflow as tf
 
 from sentencepiece import sentencepiece_model_pb2
@@ -57,7 +58,7 @@ class SentencePieceVocabulary(seqio.SentencePieceVocabulary):
     super().__init__(sentencepiece_model_file=sentencepiece_model_file)
     self._extra_tokens = extra_tokens
 
-  def _model_context(self) -> seqio.SentencePieceVocabulary._ModelContext:
+  def _model_context(self) -> seqio_vocabularies._ModelContext:  # pylint: disable=protected-access
     """Overrides parent function to only support extra tokens."""
     if self._model:
       return self._model
@@ -66,7 +67,7 @@ class SentencePieceVocabulary(seqio.SentencePieceVocabulary):
     # Without a lock, users may randomly see SIGSEGV on
     # sentencepiece::ModelInterface::pad_piece when using the vocabulary in
     # SeqIO preprocessors.
-    with self._load_model_lock:
+    with seqio_vocabularies._load_model_lock:  # pylint: disable=protected-access
       # Handle cases where SP can't load the file, but gfile can.
       with tf.io.gfile.GFile(self.sentencepiece_model_file, "rb") as f:
         sp_model = f.read()
@@ -105,7 +106,9 @@ class SentencePieceVocabulary(seqio.SentencePieceVocabulary):
             tokenizer.pad_id(),
         )
 
-      self._model = self._ModelContext(tokenizer=tokenizer, sp_model=sp_model)
+      self._model = seqio_vocabularies._ModelContext(  # pylint: disable=protected-access
+          tokenizer=tokenizer, sp_model=sp_model
+      )
       return self._model
 
   def __str__(self) -> str:
