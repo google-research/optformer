@@ -18,13 +18,14 @@ import abc
 import hashlib
 import math
 import os
-from typing import Generic, Iterable, Sequence, TypeVar
+import threading
+from typing import ClassVar, Generic, Iterable, Sequence, TypeVar
 
 from absl import logging
 from optformer.common import serialization
 import seqio
-from seqio import vocabularies as seqio_vocabularies
 import tensorflow as tf
+import tensorflow_text as tf_text
 
 from sentencepiece import sentencepiece_model_pb2
 import sentencepiece as sentencepiece_processor
@@ -38,8 +39,14 @@ VOCAB_TEST_MODEL_FILE = os.path.join(
 )
 
 
-class SentencePieceVocabulary(seqio.SentencePieceVocabulary):
-  """Sentence piece vocabulary that supports extra tokens."""
+class SentencePieceVocabulary(seqio.Vocabulary):
+  """SentencePiece vocabulary that supports extra tokens.
+
+  Forked from seqio for stability + to avoid breakages.
+  """
+
+  # SentencePieceProcessor::LoadFromSerializedProto is not thread-safe.
+  _load_model_lock: ClassVar[threading.Lock] = threading.Lock()
 
   def __init__(
       self,
@@ -51,71 +58,94 @@ class SentencePieceVocabulary(seqio.SentencePieceVocabulary):
     Custom tokens of the form <x> are guaranteed to be tokenzed atomically.
 
     Args:
-      sentencepiece_model_file: File path to a
-        sentencepiece_model_pb2.ModelProto.
+      sentencepiece_model_file: Path to a sentencepiece_model_pb2.ModelProto.
       extra_tokens: Extra tokens.
     """
-    super().__init__(sentencepiece_model_file=sentencepiece_model_file)
+    self._sentencepiece_model_file = sentencepiece_model_file
     self._extra_tokens = extra_tokens
 
-  def _model_context(self) -> seqio_vocabularies._ModelContext:  # pylint: disable=protected-access
-    """Overrides parent function to only support extra tokens."""
-    if self._model:
-      return self._model
-
-    # SentencePieceProcessor::LoadFromSerializedProto is not thread-safe.
-    # Without a lock, users may randomly see SIGSEGV on
-    # sentencepiece::ModelInterface::pad_piece when using the vocabulary in
-    # SeqIO preprocessors.
-    with seqio_vocabularies._load_model_lock:  # pylint: disable=protected-access
-      # Handle cases where SP can't load the file, but gfile can.
-      with tf.io.gfile.GFile(self.sentencepiece_model_file, "rb") as f:
-        sp_model = f.read()
-        model = sentencepiece_model_pb2.ModelProto.FromString(sp_model)
-        # Add extra string tokens.
-        piece2idx = {piece.piece: i for i, piece in enumerate(model.pieces)}
-        for extra_token in self._extra_tokens:
-          # Add exponential length score for longest match.
-          score = math.exp(len(extra_token))
-          if extra_token in piece2idx:
-            logging.info(
-                "Overwriting piece: %s, score: %s -> %s",
-                extra_token,
-                model.pieces[piece2idx[extra_token]].score,
-                score,
-            )
-            model.pieces[piece2idx[extra_token]].score = score
-          else:
-            logging.info("Adding piece: %s, score: %s", extra_token, score)
-            model.pieces.add(
-                piece=extra_token,
-                score=score,
-                type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
-            )
-        sp_model = model.SerializeToString()
-      # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
-      tokenizer = sentencepiece_processor.SentencePieceProcessor()
-      tokenizer.LoadFromSerializedProto(sp_model)
-      if tokenizer.pad_id() != seqio.PAD_ID:
-        logging.warning(
-            (
-                "T5 library uses PAD_ID=%s, which is different from the "
-                "sentencepiece vocabulary, which defines pad_id=%s"
-            ),
-            seqio.PAD_ID,
-            tokenizer.pad_id(),
+    with tf.io.gfile.GFile(sentencepiece_model_file, "rb") as f:
+      model = sentencepiece_model_pb2.ModelProto.FromString(f.read())
+    # Add extra string tokens.
+    piece2idx = {piece.piece: i for i, piece in enumerate(model.pieces)}
+    for extra_token in self._extra_tokens:
+      # Add exponential length score for longest match.
+      score = math.exp(len(extra_token))
+      if extra_token in piece2idx:
+        model.pieces[piece2idx[extra_token]].score = score
+      else:
+        model.pieces.add(
+            piece=extra_token,
+            score=score,
+            type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
         )
+    self._sp_model: bytes = model.SerializeToString()
 
-      self._model = seqio_vocabularies._ModelContext(  # pylint: disable=protected-access
-          tokenizer=tokenizer, sp_model=sp_model
-      )
-      return self._model
+    with self._load_model_lock:
+      # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
+      self._tokenizer = sentencepiece_processor.SentencePieceProcessor()
+      self._tokenizer.LoadFromSerializedProto(self._sp_model)
+      if self._tokenizer.pad_id() != seqio.PAD_ID:
+        logging.warning(
+            "SeqIO PAD_ID=%s but SentencePiece pad_id=%s",
+            seqio.PAD_ID,
+            self._tokenizer.pad_id(),
+        )
+      self._tf_tokenizer = tf_text.SentencepieceTokenizer(model=self._sp_model)
+
+  @property
+  def bos_id(self) -> int | None:
+    return self._tokenizer.bos_id()
+
+  @property
+  def eos_id(self) -> int | None:
+    return self._tokenizer.eos_id()
+
+  @property
+  def unk_id(self) -> int | None:
+    return self._tokenizer.unk_id()
+
+  @property
+  def vocab_size(self):
+    return self._base_vocab_size
+
+  @property
+  def _base_vocab_size(self):
+    return self._tokenizer.GetPieceSize()
+
+  def _encode(self, s: str) -> Sequence[int]:
+    return self._tokenizer.EncodeAsIds(s)
+
+  def _decode(self, ids):
+    # convert all the extra ids (sentinels) to UNK=2
+    unk_id = self._tokenizer.unk_id()
+    piece_size = self._tokenizer.GetPieceSize()
+    ids = [unk_id if i >= piece_size else int(i) for i in ids]
+    return self._tokenizer.DecodeIds(ids)
+
+  def _encode_tf(self, s):
+    return self._tf_tokenizer.tokenize(s)
+
+  def _decode_tf(self, ids):
+    return self._tf_tokenizer.detokenize(ids)
+
+  def __eq__(self, other):
+    if self._sp_model is None:
+      return False
+    if not isinstance(other, SentencePieceVocabulary):
+      return False
+    try:
+      their_md5 = hashlib.md5(other._sp_model).hexdigest()
+    except AttributeError:  # If other has no sp_model attribute
+      return False
+    our_md5 = hashlib.md5(self._sp_model).hexdigest()
+    return our_md5 == their_md5
 
   def __str__(self) -> str:
     return (
-        f"SentencePieceVocabulary(file={self.sentencepiece_model_file}, "
+        f"SentencePieceVocabulary(file={self._sentencepiece_model_file}, "
         f"extra_tokens={self._extra_tokens}, "
-        f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})"
+        f"spm_md5={hashlib.md5(self._sp_model).hexdigest()})"
     )
 
   @property
