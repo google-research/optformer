@@ -344,6 +344,30 @@ class IncompleteTrialRemover(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
     return self.augment(study)
 
 
+class ObjectiveNormalizer(VizierAugmenter[vz.ProblemAndTrials]):
+  """Normalizes objective values to be in [0, 1]."""
+
+  def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    mc = study.problem.metric_information.item()
+    y_converter = converters.DefaultModelOutputConverter(
+        mc,
+        flip_sign_for_minimization_metrics=False,
+    )
+    ys = y_converter.convert([t.final_measurement_or_die for t in study.trials])
+
+    y_min, y_max = np.min(ys), np.max(ys)
+    normalized_ys = (ys - y_min) / (y_max - y_min)
+
+    normalized_metrics = y_converter.to_metrics(normalized_ys)
+    for t, metric in zip(study.trials, normalized_metrics):
+      t.final_measurement_or_die.metrics[mc.name] = metric
+
+    return study
+
+  def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    return self.augment(study)
+
+
 class TrialsSorter(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
   """Sort a study's trials from worst to best (based on metric goal)."""
 

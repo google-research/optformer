@@ -97,6 +97,29 @@ class IncompleteTrialRemoverTest(absltest.TestCase):
       self.assertEqual(t.status, vz.TrialStatus.COMPLETED)
 
 
+class ObjectiveNormalizerTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    trial1 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 50}))
+    trial2 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': -100}))
+    trial3 = vz.Trial(final_measurement=vz.Measurement(metrics={'m': 100}))
+    self.trials = [trial1, trial2, trial3]
+
+  @parameterized.parameters(
+      dict(goal=vz.ObjectiveMetricGoal.MAXIMIZE, expected=[0.75, 0.0, 1.0]),
+      dict(goal=vz.ObjectiveMetricGoal.MINIMIZE, expected=[0.75, 0.0, 1.0]),
+  )
+  def test_e2e(self, goal: vz.ObjectiveMetricGoal, expected: list[float]):
+    m = vz.MetricInformation(name='m', goal=goal)
+    problem = vz.ProblemStatement(metric_information=[m])
+    study = vz.ProblemAndTrials(problem, trials=self.trials)
+
+    new_study = augmenters.ObjectiveNormalizer().augment_study(study)
+    metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pytype:disable=attribute-error
+    self.assertEqual(metrics, expected)
+
+
 class TrialsSorterTest(parameterized.TestCase):
 
   def setUp(self):
