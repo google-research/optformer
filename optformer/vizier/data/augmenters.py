@@ -278,7 +278,7 @@ class RemoveStudyMetadata(VizierIdempotentAugmenter[vz.ProblemStatement]):
   """Remove all study-level metadata from the ProblemStatement."""
 
   def augment(self, problem: vz.ProblemStatement, /) -> vz.ProblemStatement:
-    problem.metadata.clear()
+    problem.metadata = vz.Metadata()
     return problem
 
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
