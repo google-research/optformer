@@ -63,8 +63,14 @@ class SentencePieceVocabulary(seqio.Vocabulary):
     """
     self._sentencepiece_model_file = sentencepiece_model_file
     self._extra_tokens = extra_tokens
+    self._load_model_and_tokenizers()
 
-    with tf.io.gfile.GFile(sentencepiece_model_file, "rb") as f:
+  def _load_model_and_tokenizers(self) -> None:
+    """Stateful method to load `_sp_model` and tokenizers.
+
+    Needed for pickling via get/setstate.
+    """
+    with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
       model = sentencepiece_model_pb2.ModelProto.FromString(f.read())
     # Add extra string tokens.
     piece2idx = {piece.piece: i for i, piece in enumerate(model.pieces)}
@@ -148,6 +154,19 @@ class SentencePieceVocabulary(seqio.Vocabulary):
         f"extra_tokens={self._extra_tokens}, "
         f"spm_md5={hashlib.md5(self._sp_model).hexdigest()})"
     )
+
+  # NOTE: get/setstate are needed for beam pickling in SeqIO caches.
+  def __getstate__(self):
+    state = self.__dict__.copy()
+    # These aren't pickable, so they'll need to be re-created.
+    del state["_sp_model"]
+    del state["_tokenizer"]
+    del state["_tf_tokenizer"]
+    return state
+
+  def __setstate__(self, state):
+    self.__dict__.update(state)
+    self._load_model_and_tokenizers()
 
   @property
   def extra_tokens(self) -> Sequence[str]:
