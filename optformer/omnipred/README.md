@@ -32,7 +32,7 @@ The rest of the code follows our regular inference API.
 # Citation
 If you found this codebase useful, please consider citing our paper. Thanks!
 
-```
+```bibtex
 @article{omnipred,
   author       = {Xingyou Song and
                   Oscar Li and

@@ -9,7 +9,7 @@ Legacy code for the paper [Towards Learning Universal Hyperparameter Optimizers 
 # Citation
 If you found this codebase useful, please consider citing our paper. Thanks!
 
-```
+```bibtex
 @inproceedings{optformer,
   author    = {Yutian Chen and
                Xingyou Song and
