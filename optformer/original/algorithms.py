@@ -66,8 +66,8 @@ class QuantizedVizierAlgorithm(base.Algorithm):
       self,
       problem: vz.ProblemStatement,
       inference_config: t5x_inference_lib.InferenceConfig,
+      num_suggest_samples: int,
       *,
-      num_suggest_samples: int = 256,
       num_measurement_samples: int = 256,
       acquisition_function: Optional[acquisitions.AcquisitionFunction] = None,
       max_sequence_length: int = 8192,
@@ -286,6 +286,7 @@ class VizierOptimizerAlgorithm(QuantizedVizierAlgorithm):
     super().__init__(
         problem,
         inference_config,
+        num_suggest_samples=1,  # Not used.
         acquisition_function=acquisition_function,
         max_sequence_length=max_sequence_length,
         seed=seed,
