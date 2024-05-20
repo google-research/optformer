@@ -258,16 +258,17 @@ class QuantizedTrialsSerializersTest(absltest.TestCase):
         ],
     )
     designer = grid.GridSearchDesigner(self.problem.search_space)
-    self.trials = [t.to_trial() for t in designer.suggest(3)]
-    self.trials[0].complete(vz.Measurement(metrics={"x1": 10.0, "x2": 9.0}))
-    self.trials[1].complete(vz.Measurement(metrics={"x1": 20.0, "x2": 19.0}))
+    self.trials = [t.to_trial() for t in designer.suggest(4)]
+    self.trials[0].complete(vz.Measurement(metrics={"x1": 25.0, "x2": 24.0}))
+    self.trials[1].complete(vz.Measurement(metrics={"x1": 10.0, "x2": 9.0}))
+    self.trials[2].complete(vz.Measurement(metrics={"x1": 30.0, "x2": 29.0}))
 
     self.study = vz.ProblemAndTrials(self.problem, self.trials)
 
   def test_quantized_trials_serializer(self):
     serializer = serializers.QuantizedTrialsSerializer()
     out = serializer.to_str(self.study)
-    expected = "<|><0><0><0><0><0><0><0><0><*><0><0><|><111><0><0><0><0><0><0><0><*><999><999><|><222><0><0><0><0><0><0><0><*><PENDING><PENDING><|>"
+    expected = "<|><0><0><0><0><0><0><0><0><*><750><750><|><111><0><0><0><0><0><0><0><*><0><0><|><222><0><0><0><0><0><0><0><*><999><999><|><333><0><0><0><0><0><0><0><*><PENDING><PENDING><|>"
     self.assertEqual(out, expected)
 
   def test_quantized_trials_empty(self):
