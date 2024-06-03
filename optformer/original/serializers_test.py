@@ -91,11 +91,15 @@ class QuantizedSerializersTest(parameterized.TestCase):
     expected = """<MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM>"""
     self.assertEqual(out, expected)
 
-  @absltest.skip("Fix once we use OSS Converter on all param types.")
   def test_suggestion_deserializer(self):
     s = "<0><0><0><0><0><0><0><0>"
-    suggestion = self.suggest_serializer.from_str(s)
-    self.assertEqual(suggestion.parameters, self.completed_trial.parameters)
+    trial_params = self.suggest_serializer.from_str(s).parameters.as_dict()
+    completed_trial_params = self.completed_trial.parameters.as_dict()
+    for k, v in trial_params.items():
+      if isinstance(v, float):  # Rounding errors from quantization.
+        self.assertAlmostEqual(v, completed_trial_params[k], delta=1e-2)
+      else:
+        self.assertEqual(v, completed_trial_params[k])
 
     s = """<MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM><MISSING_PARAM>"""
     suggestion = self.suggest_serializer.from_str(s)
