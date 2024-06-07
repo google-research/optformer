@@ -344,8 +344,15 @@ class IncompleteTrialRemover(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
     return self.augment(study)
 
 
+@attrs.define
 class ObjectiveNormalizer(VizierAugmenter[vz.ProblemAndTrials]):
-  """Normalizes objective values to be in [0, 1]."""
+  """Normalizes objective values based on entire study.
+
+  NOTE: Does NOT flip sign for minimize/maximize.
+  """
+
+  # Objectives within (-0.5, 0.5) with offset default.
+  additive_offset: float = attrs.field(default=-0.5, kw_only=True)
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     mc = study.problem.metric_information.item()
@@ -356,7 +363,7 @@ class ObjectiveNormalizer(VizierAugmenter[vz.ProblemAndTrials]):
     ys = y_converter.convert([t.final_measurement_or_die for t in study.trials])
 
     y_min, y_max = np.min(ys), np.max(ys)
-    normalized_ys = (ys - y_min) / (y_max - y_min)
+    normalized_ys = (ys - y_min) / (y_max - y_min) + self.additive_offset
 
     normalized_metrics = y_converter.to_metrics(normalized_ys)
     for t, metric in zip(study.trials, normalized_metrics):

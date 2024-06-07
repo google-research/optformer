@@ -107,8 +107,8 @@ class ObjectiveNormalizerTest(parameterized.TestCase):
     self.trials = [trial1, trial2, trial3]
 
   @parameterized.parameters(
-      dict(goal=vz.ObjectiveMetricGoal.MAXIMIZE, expected=[0.75, 0.0, 1.0]),
-      dict(goal=vz.ObjectiveMetricGoal.MINIMIZE, expected=[0.75, 0.0, 1.0]),
+      dict(goal=vz.ObjectiveMetricGoal.MAXIMIZE, expected=[0.25, -0.5, 0.5]),
+      dict(goal=vz.ObjectiveMetricGoal.MINIMIZE, expected=[0.25, -0.5, 0.5]),
   )
   def test_e2e(self, goal: vz.ObjectiveMetricGoal, expected: list[float]):
     m = vz.MetricInformation(name='m', goal=goal)
