@@ -37,22 +37,23 @@ _D = TypeVar('_D')
 
 
 @attrs.define
-class EarlyStoppingFinetuner(Generic[_D]):
-  """Keeps finetuning against training data until overfitting is detected."""
+class Finetuner(Generic[_D]):
+  """Finetunes against training data until overfitting or max epochs."""
 
   model: models.BaseTransformerModel = attrs.field()
   inference_dataset_fn: datasets.E2EInferenceDatasetFn[_D] = attrs.field()
 
   learning_rate: float = attrs.field(default=1e-5)  # 10x lower than training.
-  max_num_epochs: int = attrs.field(default=30)
   batch_size: int = attrs.field(default=256)  # Should match training.
+  max_num_epochs: int = attrs.field(default=30)
+  use_early_stop: bool = attrs.field(default=True)
 
   seed: int = attrs.field(default=0)
   loss_batch_size: int = attrs.field(default=64)  # TPU memory limit
-
   batch_per_tpu: Optional[int] = attrs.field(default=4)  # TPU memory limit
 
-  _num_microbatches = attrs.field(init=False)
+  # Post init fields.
+  _num_microbatches: int | None = attrs.field(init=False)
 
   def __attrs_post_init__(self):
     self._num_microbatches = (
@@ -77,11 +78,12 @@ class EarlyStoppingFinetuner(Generic[_D]):
     valid_losses = []
     prev_state = state  # Never used.
     for n_epoch in range(self.max_num_epochs):
-      valid_losses.append(self._loss(state.params, valid_data))
 
-      if _detect_overfitting(valid_losses):
-        logging.info('Early stopping at epoch %d', n_epoch)
-        return prev_state
+      if self.use_early_stop:
+        valid_losses.append(self._loss(state.params, valid_data))
+        if _detect_overfitting(valid_losses):
+          logging.info('Early stopping at epoch %d', n_epoch)
+          return prev_state
 
       prev_state = state
       for _ in range(num_grad_steps_per_epoch):
