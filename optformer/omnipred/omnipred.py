@@ -16,7 +16,7 @@
 
 import functools
 import typing
-from typing import Callable, Generic, Mapping, Tuple, TypeVar
+from typing import Generic, Mapping, Tuple, TypeVar
 import attrs
 import jax
 import jax.numpy as jnp
@@ -111,18 +111,14 @@ class OmniPred(Generic[_T]):
     )
     return sampled_tokens, aux['scores']
 
-  def predict(
-      self, prompt: _T, aggregator_fn: Callable[[np.ndarray], float] = np.median
-  ) -> float:
-    """Give a pointwise prediction, aggregated from samples."""
+  def predict(self, prompt: _T) -> list[float]:
+    """Produce sample float predictions for a given prompt."""
     ds = self._dataset_fn([prompt]).batch(1)
     batch = next(ds.as_numpy_iterator())
 
     toks, _ = self._sample_tokens(batch)
     toks = jnp.squeeze(toks, axis=0)  # [S, L]
-
-    fs = np.array([self._vocab.decode_to_object(t) for t in toks])
-    return aggregator_fn(fs)
+    return [self._vocab.decode_to_object(t) for t in toks]
 
   @property
   def _vocab(self) -> vocabs.FloatMetricVocabulary:

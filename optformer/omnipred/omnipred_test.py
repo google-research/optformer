@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 from optformer.common.data import vocabs as common_vocabs
 from optformer.omnipred import omnipred
 from optformer.omnipred import serialization
@@ -55,7 +56,7 @@ class OmnipredTest(absltest.TestCase):
     )
 
   def test_predict(self):
-    self.assertEqual(self.regressor.predict(self.study), 4.861e-07)
+    self.assertEqual(np.median(self.regressor.predict(self.study)), 4.861e-07)
 
   def test_finetune(self):
     finetuner = finetuning.Finetuner(
@@ -70,7 +71,7 @@ class OmnipredTest(absltest.TestCase):
     self.inference_config.train_state = finetuner.finetune(
         3 * [self.study], 3 * [self.study], self.inference_config.train_state
     )
-    self.assertEqual(self.regressor.predict(self.study), 5.831e-07)
+    self.assertEqual(np.median(self.regressor.predict(self.study)), 5.831e-07)
 
 
 if __name__ == '__main__':
