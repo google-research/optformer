@@ -61,8 +61,10 @@ def _ranking_metrics(
 ) -> dict[str, float]:
   return {
       "kendall": scipy.stats.kendalltau(targets, preds).correlation,
-      "spearman_corrcoef": 100 * scipy.stats.spearmanr(targets, preds)[0],
-      # "pearson_corrcoef": 100 * scipy.stats.pearsonr(targets, preds)[0],
+      "spearman_corrcoef": (
+          100 * scipy.stats.spearmanr(targets, preds).statistic
+      ),
+      "pearson_corrcoef": 100 * np.corrcoef(targets, preds)[0, 1],  # NaN safe.
   }
 
 
