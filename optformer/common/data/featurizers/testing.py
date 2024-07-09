@@ -15,29 +15,35 @@
 """Useful featurizers for testing."""
 
 import functools
+import attrs
 from optformer.common.data.featurizers import base
 import tensorflow as tf
 
 
+@attrs.define
 class IdentityFeaturizer(base.Featurizer[str]):
   """Simply returns identity of string input."""
 
+  rank: int = attrs.field(default=0)
+
   def to_features(self, obj: str, /) -> dict[str, tf.Tensor]:
-    return {
-        'inputs': tf.constant(obj, dtype=tf.string),
-        'targets': tf.constant(obj, dtype=tf.string),
-    }
+    ranked_obj = tf.constant(obj, dtype=tf.string)
+    for _ in range(self.rank):
+      ranked_obj = tf.expand_dims(ranked_obj, 0)
+
+    return {'inputs': ranked_obj, 'targets': ranked_obj}
 
   @functools.cached_property
   def element_spec(self) -> dict[str, tf.TensorSpec]:
+    shape = [None for _ in range(self.rank)]
     return {
-        'inputs': tf.TensorSpec(shape=(), dtype=tf.string),
-        'targets': tf.TensorSpec(shape=(), dtype=tf.string),
+        'inputs': tf.TensorSpec(shape, dtype=tf.string),
+        'targets': tf.TensorSpec(shape, dtype=tf.string),
     }
 
   @functools.cached_property
   def empty_output(self) -> dict[str, tf.Tensor]:
-    return {
-        'inputs': tf.constant('', dtype=tf.string),
-        'targets': tf.constant('', dtype=tf.string),
-    }
+    ranked_obj = tf.constant('', dtype=tf.string)
+    for _ in range(self.rank):
+      ranked_obj = tf.expand_dims(ranked_obj, 0)
+    return {'inputs': ranked_obj, 'targets': ranked_obj}

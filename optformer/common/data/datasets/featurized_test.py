@@ -18,19 +18,20 @@ import seqio
 import tensorflow as tf
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 BAD_STRING = 'bad_string'
 
 
-class FeaturizedDatasetFnTest(absltest.TestCase):
+class FeaturizedDatasetFnTest(parameterized.TestCase):
 
-  def setUp(self):
-    super().setUp()
-    self.featurizer = featurizers.IdentityFeaturizer()
+  @parameterized.parameters((0,), (1,), (2,))
+  def test_e2e(self, rank: int):
+    objs = ['hello', 'goodbye']
+
+    self.featurizer = featurizers.IdentityFeaturizer(rank)
     self.dataset_fn = featurized.FeaturizedDatasetFn(self.featurizer)
 
-  def test_e2e(self):
-    objs = ['hello', 'goodbye']
     ds = tf.data.Dataset.from_tensor_slices(objs)
     ds = self.dataset_fn(ds)
 
@@ -38,7 +39,11 @@ class FeaturizedDatasetFnTest(absltest.TestCase):
 
     seqio.test_utils.assert_dataset(ds, expected)
     for k, v in ds.element_spec.items():
-      self.assertSequenceEqual(v.shape, (), msg=f'{k} must have empty shape.')
+      self.assertSequenceEqual(
+          v.shape,
+          [None for _ in range(rank)],
+          msg=f'{k} must have rank {rank}.',
+      )
 
 
 if __name__ == '__main__':

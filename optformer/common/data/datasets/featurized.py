@@ -44,21 +44,19 @@ class FeaturizedDatasetFn(base.DatasetFn[tf.data.Dataset]):
     # Apply the featurizer.
     def featurize_fn(s) -> Sequence[tf.Tensor]:
       # `tf.numpy_function` requires output type as Sequences, not dicts. Shapes
-      # must also be consistent across all return statements.
+      # must also be consistent across all return statements. First output is
+      # a bool indicating success.
       try:
-        return tuple(self.featurizer.to_features(s).values())  # pytype: disable=bad-return-type  # py311-upgrade
+        return (True, *self.featurizer.to_features(s).values())  # pytype: disable=bad-return-type  # py311-upgrade
       except Exception as e:  # pylint:disable=broad-exception-caught
         logging.exception('Failed to featurize: %s', e)
-        return tuple(self.featurizer.empty_output.values())  # pytype: disable=bad-return-type  # py311-upgrade
+        return (False, *self.featurizer.empty_output.values())  # pytype: disable=bad-return-type  # py311-upgrade
 
-    t_out = tuple(self.featurizer.output_types.values())
+    t_out = (tf.bool, *self.featurizer.output_types.values())
     ds = ds.map(lambda s: tf.numpy_function(featurize_fn, [s], t_out))
 
     # Filter empty (failed) results.
-    filt_fn = lambda *v: ~tf.reduce_all(
-        [tf.equal(*ve) for ve in zip(v, self.featurizer.empty_output.values())]
-    )
-    ds = ds.filter(filt_fn)
+    ds = ds.filter(lambda success, *_: success)
 
     # NOTE: Downstream tokenization requires inputs w/ known shapes.
     def set_shapes(values: Sequence[tf.Tensor]) -> Sequence[tf.Tensor]:
@@ -66,7 +64,8 @@ class FeaturizedDatasetFn(base.DatasetFn[tf.data.Dataset]):
         v.set_shape(s)
       return values
 
-    # Re-provide shape on each value.
-    ds = ds.map(lambda *v: set_shapes(v))
+    # Drop the success bool and re-provide shape on each value.
+    ds = ds.map(lambda _, *v: set_shapes(v))
+
     # Reconstruct the dict from tuple.
     return ds.map(lambda *v: dict(zip(self.featurizer.output_types.keys(), v)))
