@@ -318,6 +318,20 @@ class RandomTrialSlicer(VizierAugmenter[vz.ProblemAndTrials]):
     return self.augment(study)
 
 
+@attrs.define
+class FixedLengthTrialSlicer(VizierAugmenter[vz.ProblemAndTrials]):
+  """Slices the list of trials to a (maximum) fixed length."""
+
+  max_num_trials: int = attrs.field()
+
+  def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    study.trials[:] = study.trials[: self.max_num_trials]
+    return study
+
+  def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    return self.augment(study)
+
+
 @attrs.define(init=True, kw_only=True)
 class IncompleteTrialRemover(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
   """Removes incomplete trials."""

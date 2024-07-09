@@ -70,7 +70,7 @@ class UniformIntervalSampler(IntervalSampler):
     # Sample the interval length uniformly within the bounds.
     interval_range = rng.uniform(*self.length_bounds)
     # Sample the lower bound uniformly in (0, 1-range).
-    interval_min = np.random.uniform(0, 1.0 - interval_range)
+    interval_min = rng.uniform(0, 1.0 - interval_range)
     interval_max = interval_min + interval_range
     return (interval_min, interval_max)
 
