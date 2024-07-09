@@ -53,7 +53,10 @@ class FeaturizedDatasetFn(base.DatasetFn[tf.data.Dataset]):
         return (False, *self.featurizer.empty_output.values())  # pytype: disable=bad-return-type  # py311-upgrade
 
     t_out = (tf.bool, *self.featurizer.output_types.values())
-    ds = ds.map(lambda s: tf.numpy_function(featurize_fn, [s], t_out))
+    ds = ds.map(
+        lambda s: tf.numpy_function(featurize_fn, [s], t_out),
+        num_parallel_calls=tf.data.AUTOTUNE,
+    )
 
     # Filter empty (failed) results.
     ds = ds.filter(lambda success, *_: success)
