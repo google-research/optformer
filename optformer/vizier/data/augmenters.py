@@ -367,8 +367,12 @@ class ObjectiveNormalizer(VizierAugmenter[vz.ProblemAndTrials]):
 
   # Objectives within (-0.5, 0.5) with offset default.
   additive_offset: float = attrs.field(default=-0.5, kw_only=True)
+  eps: float = attrs.field(default=1e-6, kw_only=True)
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    if not study.trials:
+      return study
+
     mc = study.problem.metric_information.item()
     y_converter = converters.DefaultModelOutputConverter(
         mc,
@@ -377,7 +381,8 @@ class ObjectiveNormalizer(VizierAugmenter[vz.ProblemAndTrials]):
     ys = y_converter.convert([t.final_measurement_or_die for t in study.trials])
 
     y_min, y_max = np.min(ys), np.max(ys)
-    normalized_ys = (ys - y_min) / (y_max - y_min) + self.additive_offset
+    normalized_ys = (ys - y_min) / (y_max - y_min + self.eps)
+    normalized_ys += self.additive_offset
 
     normalized_metrics = y_converter.to_metrics(normalized_ys)
     for t, metric in zip(study.trials, normalized_metrics):
