@@ -308,5 +308,58 @@ class RandomMetricFlipper(absltest.TestCase):
     self.assertEqual(trial_metrics['m2'].value, -1.0)
 
 
+class StandardizeSpaceAugmenterTest(absltest.TestCase):
+
+  def setUp(self):
+    super().setUp()
+
+    pc1 = vz.ParameterConfig.factory(
+        'a', bounds=(1e2, 1e5), scale_type=vz.ScaleType.LOG
+    )
+    pc2 = vz.ParameterConfig.factory(
+        'b', bounds=(-100, -50), scale_type=vz.ScaleType.LINEAR
+    )
+    pc3 = vz.ParameterConfig.factory(
+        'c',
+        feasible_values=['hi', 'hello'],
+    )
+
+    problem = vz.ProblemStatement()
+    problem.search_space.add(pc1)
+    problem.search_space.add(pc2)
+    problem.search_space.add(pc3)
+
+    trial1 = vz.Trial(parameters={'a': 1e3, 'b': -78, 'c': 'hi'})
+    trial2 = vz.Trial(parameters={'a': 1e4, 'b': -63, 'c': 'hello'})
+    self.study = vz.ProblemAndTrials(problem=problem, trials=[trial1, trial2])
+
+  def test_e2e(self):
+    augmenter = augmenters.StandardizeSearchSpace()
+    new_study = augmenter.augment(self.study)
+
+    for pc in new_study.problem.search_space.parameters:
+      if pc.type != vz.ParameterType.CATEGORICAL:
+        self.assertEqual(pc.bounds, (0.0, 1.0))
+        self.assertIsNone(pc.scale_type)
+      else:
+        self.assertEqual(pc.feasible_values, ['0', '1'])
+
+    for trial in new_study.trials:
+      for pv in trial.parameters.values():
+        if isinstance(pv.value, str):
+          self.assertIn(pv.value, ['0', '1'])
+        else:  # Numeric
+          self.assertBetween(pv.value, 0.0, 1.0)
+
+  def test_idempotent(self):
+    augmenter = augmenters.StandardizeSearchSpace()
+    study = augmenter.augment(self.study)
+
+    idempotent_study = copy.deepcopy(study)
+    for _ in range(5):
+      study = augmenter.augment(study)
+      self.assertEqual(study, idempotent_study)
+
+
 if __name__ == '__main__':
   absltest.main()

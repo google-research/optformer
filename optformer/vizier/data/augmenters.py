@@ -481,3 +481,52 @@ class HashProblemMetadata(VizierAugmenter):
 
   def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     return self.augment(study)
+
+
+class StandardizeSearchSpace(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
+  """Standardizes the search space and corresponding trials.
+
+  DOUBLE, INTEGER, and DISCRETE parameters are scaled to [0,1] range, and
+  corresponding ParameterConfigs are all DOUBLE.
+
+  CATEGORICAL parameters use standard ["0", "1", "2", ...] feasible values.
+
+  This is useful mainly for serializations for string-based regressors, where we
+  don't care about reversibility back into original space.
+  """
+
+  def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    # Create a forward converter to map to normalized feature space.
+    old_search_space = study.problem.search_space
+    if old_search_space.is_conditional:
+      raise ValueError('Conditional search spaces are not supported.')
+    forward_cvtr = converters.TrialToArrayConverter.from_study_config(
+        vz.ProblemStatement(old_search_space)
+    )
+
+    # Create new search space and backward converter into this new space.
+    new_search_space = vz.SearchSpace()
+    for i, pc in enumerate(old_search_space.parameters):
+      if pc.type == vz.ParameterType.CATEGORICAL:
+        new_pc = vz.ParameterConfig.factory(
+            f'x{i}',
+            feasible_values=[str(j) for j in range(len(pc.feasible_values))],
+        )
+      else:
+        new_pc = vz.ParameterConfig.factory(f'x{i}', bounds=(0.0, 1.0))
+      new_search_space.add(new_pc)
+    backward_cvtr = converters.TrialToArrayConverter.from_study_config(
+        vz.ProblemStatement(new_search_space)
+    )
+
+    # Apply forward then backward to obtain new trial params.
+    features = forward_cvtr.to_features(study.trials)
+    new_params = backward_cvtr.to_parameters(features)
+    for trial, new_param_dict in zip(study.trials, new_params):
+      trial.parameters = new_param_dict
+
+    study.problem.search_space = new_search_space
+    return study
+
+  def augment_study(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
+    return self.augment(study)
