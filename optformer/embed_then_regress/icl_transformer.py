@@ -84,7 +84,6 @@ class ICLTransformer(nn.Module):
   dropout: float
   num_layers: int
   token_embedder: embedders.Embedder[jt.Int[jax.Array, 'B T']]
-  use_metadata: bool
 
   def setup(self):
     # X, Y, and concatenated X,Y embedders.
@@ -118,8 +117,8 @@ class ICLTransformer(nn.Module):
       self,
       xt: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
       yt: jt.Float[jax.Array, 'B L 1'],
+      mt: jt.Float[jax.Array, 'B T'],  # Study-level metadata.
       mask: jt.Float[jax.Array, 'B 1 L L'],  # Broadcasted to all heads.
-      metadata: jt.Float[jax.Array, 'B L F'] | None = None,
       deterministic: bool | None = None,
       rng: jax.Array | None = None,
   ) -> tuple[jt.Float[jax.Array, 'B L'], jt.Float[jax.Array, 'B L']]:
@@ -128,18 +127,13 @@ class ICLTransformer(nn.Module):
     # and no token attends to target tokens: mask[:, num_ctx:] = False
     B, L, T = xt.shape
     xt = jnp.reshape(xt, (B * L, T))
-    xt = lax.stop_gradient(self.token_embedder.embed(xt))
-    xt = jnp.reshape(xt, (B, L, -1))
+    xt = lax.stop_gradient(self.token_embedder.embed(xt))  # [B*L, E]
+    xt = jnp.reshape(xt, (B, L, -1))  # [B, L, E]
 
-    if self.use_metadata:
-      if metadata is None:
-        raise ValueError('Metadata is required when use_metadata is True.')
-      metadata_dim = metadata.shape[-1]
-      metadata = jnp.reshape(metadata, (-1, metadata_dim))
-      metadata = lax.stop_gradient(self.token_embedder.embed(metadata))
-      metadata = jnp.reshape(metadata, (B, 1, -1))
-      metadata = jnp.repeat(metadata, L, axis=1)
-      xt = jnp.concatenate((xt, metadata), axis=-1)
+    mt = lax.stop_gradient(self.token_embedder.embed(mt))  # [B, E]
+    mt = jnp.expand_dims(mt, axis=1)  # [B, 1, E]
+    mt = jnp.repeat(mt, L, axis=1)  # [B, L, E]
+    xt = jnp.concatenate((xt, mt), axis=-1)  # [B, L, 2E]
 
     xt_emb = self.x_embedder(xt)
     yt_emb = self.y_embedder(yt)
