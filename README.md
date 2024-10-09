@@ -15,5 +15,6 @@ This codebase is organized by general-purpose library folders and specific-proje
 ### Specific Papers and Projects
 * [**Original OptFormer (Chen et al., 2022)**](https://github.com/google-research/optformer/tree/main/optformer/original)
 * [**OmniPred (Song et al., 2024)**](https://github.com/google-research/optformer/tree/main/optformer/omnipred)
+* [**Embed-then-Regress (Nguyen et al., 2024)](https://github.com/google-research/optformer/tree/main/optformer/embed_then_regress)
 
 **Disclaimer:** This is not an officially supported Google product.

@@ -1,0 +1,23 @@
+# Predicting from Strings: Language Model Embeddings for Bayesian Optimization
+This folder contains code for implementing and training the Embed-then-Regress model.
+
+# Citation
+If you found this codebase useful, please consider citing our paper. Thanks!
+
+```bibtex
+@article{embed_then_regress,
+  author       = {Tung Nguyen and
+                  Qiuyi Zhang and
+                  Bangding Yang and
+                  Chansoo Lee and
+                  Jorg Bornschein and
+                  Yingjie Miao and
+                  Sagi Perel and
+                  Yutian Chen and
+                  Xingyou Song},
+  title        = {Predicting from Strings: Language Model Embeddings for Bayesian Optimization},
+  journal      = {CoRR},
+  year         = {2024},
+  eprinttype    = {arXiv},
+}
+```
