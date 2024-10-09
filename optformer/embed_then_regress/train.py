@@ -106,10 +106,13 @@ def train(
   model = model_config.create_model()
   rng = jax.random.PRNGKey(train_config.seed)
 
+  f_train_step = functools.partial(train_step, model=model, optimizer=optimizer)
+  p_train_step = jax.pmap(f_train_step, axis_name='batch')
+
   train_state = create_train_state(model, optimizer, next(train_iter))
   for step in range(train_config.max_steps):
     batch = next(train_iter)
-    train_state, rng, metrics = train_step(
+    train_state, rng, metrics = p_train_step(
         model, optimizer, train_state, batch, rng
     )
     writer.write_scalars(step, metrics)

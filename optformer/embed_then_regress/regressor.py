@@ -14,7 +14,6 @@
 
 """String-level wrapper around Jax regressor."""
 
-import abc
 from typing import Sequence
 import attrs
 import flax.typing as flax_typing
@@ -30,26 +29,6 @@ from tensorflow_probability.substrates import jax as tfp
 tfd = tfp.distributions
 
 
-# TODO: Write out warping used.
-class StatefulWarper(abc.ABC):
-  """y-value warper which has a train / inference mode."""
-
-  @abc.abstractmethod
-  def train(self, ys: np.ndarray) -> None:
-    """Must be called at least once before calling `warp` or `unwarp`."""
-    pass
-
-  @abc.abstractmethod
-  def warp(self, ys: np.ndarray) -> np.ndarray:
-    """Warps target y-values, but does not change internal state."""
-    pass
-
-  @abc.abstractmethod
-  def unwarp(self, ys: np.ndarray) -> np.ndarray:
-    """Unwarps values in normalized space."""
-    pass
-
-
 # TODO: Maybe refactor omnipred2 regressor base class.
 @attrs.define
 class StatefulICLRegressor:
@@ -61,6 +40,11 @@ class StatefulICLRegressor:
 
   max_trial_length: int = attrs.field(default=100, kw_only=True)  # L
   max_token_length: int = attrs.field(default=1024, kw_only=True)  # T
+
+  # Internal state containing tokens.
+  _all_xt: jt.Int[np.ndarray, 'L T'] = attrs.field(init=False)
+  _all_yt: jt.Float[np.ndarray, 'L'] = attrs.field(init=False)
+  _mt: jt.Int[np.ndarray, 'T'] = attrs.field(init=False)
 
   def __attrs_post_init__(self):
     self.reset()
@@ -79,6 +63,9 @@ class StatefulICLRegressor:
     temp_yt = np.copy(self._all_yt)
     temp_yt = np.expand_dims(temp_yt, axis=(0, -1))  # [B=1, L, 1]
 
+    temp_mt = np.copy(self._mt)
+    temp_mt = np.expand_dims(temp_mt, axis=(0))  # [B=1, T]
+
     mask = np.ones((self.max_trial_length, self.max_trial_length), dtype=bool)
     mask[:, self._num_prev :] = False
     mask = np.expand_dims(mask, axis=(0, 1))  # [B=1, H=1, L, L]
@@ -87,6 +74,7 @@ class StatefulICLRegressor:
         self.params,
         temp_xt,
         temp_yt,
+        temp_mt,
         mask=mask,
         deterministic=True,
     )
@@ -104,18 +92,22 @@ class StatefulICLRegressor:
     self._all_yt[self._num_prev : self._num_prev + num_pts] = np.array(ys)
     self._num_prev += num_pts
 
+  def set_metadata(self, metadata: str) -> None:
+    self._mt = self._tokenize([metadata])[0]
+
   def reset(self) -> None:
     self._all_xt = np.zeros(
         (self.max_trial_length, self.max_token_length), dtype=np.int32
     )
     self._all_yt = np.zeros(self.max_trial_length, dtype=np.float32)
+    self._mt = np.zeros(self.max_token_length, dtype=np.int32)
     self._num_prev = 0
 
-  def _tokenize(self, xs: Sequence[str]) -> jt.Int[np.ndarray, 'S T']:
-    """Converts xs (strings) to tokens."""
-    batch_size = len(xs)
+  def _tokenize(self, ss: Sequence[str]) -> jt.Int[np.ndarray, 'S T']:
+    """Converts ss (strings) to tokens."""
+    batch_size = len(ss)
     ds = tf.data.Dataset.from_generator(
-        lambda: [{'input': t} for t in xs],
+        lambda: [{'input': s} for s in ss],
         output_types={'input': tf.string},
         output_shapes={'input': []},
     )

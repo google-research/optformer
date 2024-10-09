@@ -47,7 +47,7 @@ default_scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
 
 @attrs.define
 class TransformerICLOptDesigner(vza.Designer):
-  """Guides evolutionary search using LLM regressor."""
+  """Guides evolutionary search using Embed-then-Regress."""
 
   problem: vz.ProblemStatement = attrs.field()
   regressor: regressor_lib.StatefulICLRegressor = attrs.field()
@@ -90,6 +90,7 @@ class TransformerICLOptDesigner(vza.Designer):
         seed=int(jax.random.randint(self._rng, [], 0, 2**16)),
     )
     self.regressor.reset()
+    self.regressor.set_metadata('')  # TODO: Use problem metadata.
 
   def _generate_seed_trials(self, count: int) -> Sequence[vz.TrialSuggestion]:
     """First trial is search space center, the rest are quasi-random."""
