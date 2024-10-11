@@ -21,6 +21,7 @@ import jax
 import jaxtyping as jt
 import numpy as np
 from optformer.embed_then_regress import icl_transformer
+from optformer.embed_then_regress import normalization
 import seqio
 import tensorflow as tf
 from tensorflow_probability.substrates import jax as tfp
@@ -41,6 +42,10 @@ class StatefulICLRegressor:
   max_trial_length: int = attrs.field(default=100, kw_only=True)  # L
   max_token_length: int = attrs.field(default=1024, kw_only=True)  # T
 
+  warper: normalization.StatefulWarper = attrs.field(
+      factory=normalization.default_warper, kw_only=True
+  )
+
   # Internal state containing tokens.
   _all_xt: jt.Int[np.ndarray, 'L T'] = attrs.field(init=False)
   _all_yt: jt.Float[np.ndarray, 'L'] = attrs.field(init=False)
@@ -53,7 +58,7 @@ class StatefulICLRegressor:
     )
 
   def predict(self, xs: Sequence[str]) -> tfd.Distribution:
-    """Returns prediction."""
+    """Returns prediction in normalized/warped space."""
     num_query = len(xs)
 
     temp_xt = np.copy(self._all_xt)
@@ -61,6 +66,7 @@ class StatefulICLRegressor:
     temp_xt = np.expand_dims(temp_xt, axis=0)  # [B=1, L, T]
 
     temp_yt = np.copy(self._all_yt)
+    temp_yt = self.warper.warp(temp_yt)
     temp_yt = np.expand_dims(temp_yt, axis=(0, -1))  # [B=1, L, 1]
 
     temp_mt = np.copy(self._mt)
@@ -91,6 +97,8 @@ class StatefulICLRegressor:
     self._all_xt[self._num_prev : self._num_prev + num_pts] = self._tokenize(xs)
     self._all_yt[self._num_prev : self._num_prev + num_pts] = np.array(ys)
     self._num_prev += num_pts
+
+    self.warper.train(self._all_yt[: self._num_prev])
 
   def set_metadata(self, metadata: str) -> None:
     self._mt = self._tokenize([metadata])[0]
