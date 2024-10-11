@@ -25,7 +25,6 @@ import numpy as np
 import optax
 from optformer.embed_then_regress import configs
 from optformer.embed_then_regress import icl_transformer
-import tensorflow as tf
 
 
 @flax.struct.dataclass
@@ -35,6 +34,7 @@ class TrainState:
   opt_state: optax.OptState
 
 
+# TODO: Allow loading pretrained embedder params.
 def create_train_state(
     model: icl_transformer.ICLTransformer,
     optimizer: optax.GradientTransformation,
@@ -94,8 +94,7 @@ def train_step(
 def train(
     model_config: configs.ModelConfig,
     train_config: configs.TrainingConfig,
-    train_iter: tf.data.NumpyIterator,
-    valid_iter: tf.data.NumpyIterator | None = None,
+    data_config: configs.DataConfig,
 ):
   """Training loop."""
   writer = metric_writers.create_default_writer(
@@ -109,15 +108,20 @@ def train(
   f_train_step = functools.partial(train_step, model=model, optimizer=optimizer)
   p_train_step = jax.pmap(f_train_step, axis_name='batch')
 
-  train_state = create_train_state(model, optimizer, next(train_iter))
+  train_ds = data_config.wrap_ds(data_config.raw_ds('train'))
+  train_it = train_ds.as_numpy_iterator()
+  valid_ds = data_config.wrap_ds(data_config.raw_ds('validation'))
+  valid_it = valid_ds.as_numpy_iterator()
+
+  train_state = create_train_state(model, optimizer, next(train_it))
   for step in range(train_config.max_steps):
-    batch = next(train_iter)
+    batch = next(train_it)
     train_state, rng, metrics = p_train_step(
         model, optimizer, train_state, batch, rng
     )
     writer.write_scalars(step, metrics)
 
-    if step % train_config.validation_interval == 0 and valid_iter:
-      valid_batch = next(valid_iter)
+    if step % train_config.validation_interval == 0:
+      valid_batch = next(valid_it)
       _, valid_metrics = loss_fn(train_state.params, model, valid_batch, rng)
       writer.write_scalars(step, valid_metrics)

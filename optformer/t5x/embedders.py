@@ -18,6 +18,7 @@ import functools
 from typing import Callable, Sequence, cast
 import attrs
 import flax
+from flax import linen as nn
 import gin
 import jax
 import jax.numpy as jnp
@@ -25,68 +26,55 @@ import jaxtyping as jt
 from optformer.common.models import embedders
 import seqio
 from t5x import checkpoints as t5x_checkpoints
-from t5x import models
 from t5x.examples.t5 import network as t5_network
 import tensorflow as tf
 
-Tokens = jt.Int[jax.Array, 'B L']
+
+Tokens = jt.Int[jax.Array, 'B T']
 SentencePieceVocabulary = seqio.SentencePieceVocabulary
+ReductionFn = Callable[
+    [jt.Float[jax.Array, 'B T D']], jt.Float[jax.Array, 'B D']
+]
+
+
+class FlaxT5Embedder(nn.Module):
+  """Low level flax embedder.
+
+  The raw output of an encoder is [B, T, D]. A standard technique is to reduce
+  this tensor to length-independent [B, D].
+
+  According to t-SNE, avg-pool and max-pool work well over the length axis.
+  """
+
+  transformer: t5_network.Transformer
+  reduction_fn: ReductionFn = functools.partial(jnp.average, axis=-2)
+  pad_id: int = 0
+
+  def __call__(self, tokens: Tokens) -> jt.Float[jax.Array, 'B D']:
+    out = self.transformer.encode(tokens, enable_dropout=False)
+    mask = tokens != self.pad_id
+    embeddings = out * mask[..., None]
+    embeddings: jt.Float[jax.Array, 'B T D'] = embeddings.astype(jnp.float32)
+    return self.reduction_fn(embeddings)
 
 
 # eq=False allows jitting but won't use jit-compilation cache. Not an issue if
 # we only use one instance of the class.
 @attrs.define(eq=False)
 class T5XTokensEmbedder(embedders.Embedder[Tokens]):
-  """T5 embedder with token inputs.
+  """Wraps low-level Embedder with checkpoint and params."""
 
-  The raw output of an encoder is [B, L, D]. A standard technique is to reduce
-  this tensor to length-independent [B, D].
-
-  According to t-SNE, avg-pool and max-pool work well over the length axis.
-  """
-
-  model: models.EncoderDecoderModel = attrs.field(init=True)
-  checkpoint_path: str | None = attrs.field(init=True)
-
-  reduction_fn: Callable[[jax.Array], jax.Array] = attrs.field(
-      init=True, kw_only=True, default=functools.partial(jnp.average, axis=-2)
-  )
-
-  # Created downstream.
-  network: t5_network.Transformer = attrs.field(init=False)
-  variables: flax.core.scope.VariableDict = attrs.field(init=False)
-  vocab: SentencePieceVocabulary = attrs.field(init=False)
-
-  def __attrs_post_init__(self):
-    self.network = cast(t5_network.Transformer, self.model.module)
-
-    if self.checkpoint_path:
-      full_params = t5x_checkpoints.load_t5x_checkpoint(self.checkpoint_path)
-    else:
-      x = jnp.empty((1, 16))
-      full_params = self.network.init(jax.random.PRNGKey(0), x, x, x)
-
-    params = full_params['target']
-    params.pop('decoder')
-    self.variables = {'params': params}
-    self.vocab = cast(SentencePieceVocabulary, self.model.input_vocabulary)
+  flax_embedder: FlaxT5Embedder = attrs.field()
+  variables: flax.core.scope.FrozenVariableDict = attrs.field()
+  vocab: seqio.SentencePieceVocabulary = attrs.field()
 
   @functools.partial(jax.jit, static_argnames=['self'])
   def embed(self, tokens: Tokens) -> jt.Float[jax.Array, 'B D']:
-    out = self.network.apply(
-        self.variables, tokens, method=self.network.encode, enable_dropout=False
-    )
-
-    mask = tokens != self.vocab.pad_id
-    embeddings = out * mask[..., None]
-    embeddings: jt.Float[jax.Array, 'B L D'] = embeddings.astype(jnp.float32)
-
-    # [B, L, D] -> [B, D] via reduction.
-    return self.reduction_fn(embeddings)
+    return self.flax_embedder.apply(self.variables, tokens)
 
   @property
   def dimension(self) -> int:
-    return self.network.config.emb_dim
+    return self.flax_embedder.transformer.config.emb_dim
 
   @classmethod
   def from_pretrained(
@@ -96,7 +84,24 @@ class T5XTokensEmbedder(embedders.Embedder[Tokens]):
     # switching between different configs.
     gin.parse_config_file(gin_file)
     model = gin.query_parameter('%MODEL').scoped_configurable_fn()
-    return T5XTokensEmbedder(model, checkpoint_path)
+
+    transformer = cast(t5_network.Transformer, model.module)
+    vocab = cast(SentencePieceVocabulary, model.input_vocabulary)
+    pad_id = vocab.pad_id
+    flax_embedder = FlaxT5Embedder(transformer, pad_id=pad_id)
+
+    if checkpoint_path:
+      full_params = t5x_checkpoints.load_t5x_checkpoint(checkpoint_path)
+    else:
+      x = jnp.empty((1, 16))
+      full_params = transformer.init(jax.random.PRNGKey(0), x, x, x)
+    params = full_params['target']
+    params.pop('decoder')
+
+    # Since `FlaxT5Embedder` now contains 'transformer' as a submodule, we need
+    # to wrap the namespaces properly.
+    variables = flax.core.freeze({'params': {'transformer': params}})
+    return T5XTokensEmbedder(flax_embedder, variables, vocab)
 
   @classmethod
   def from_small(cls) -> 'T5XTokensEmbedder':
@@ -136,7 +141,7 @@ class T5XTextEmbedder(embedders.Embedder[str]):
   token_embedder: T5XTokensEmbedder = attrs.field(init=True)
 
   add_eos: bool = attrs.field(kw_only=True, default=True)
-  max_length: int = attrs.field(kw_only=True, default=1024)  # Abbreviated as L.
+  max_length: int = attrs.field(kw_only=True, default=1024)  # Abbreviated as T.
 
   def embed(self, texts: Sequence[str]) -> jt.Float[jax.Array, 'B D']:
     """Tokenizes texts and sends to T5 encoder."""
@@ -160,7 +165,7 @@ class T5XTextEmbedder(embedders.Embedder[str]):
     )
     ds = ds.batch(batch_size)
 
-    tokens = next(ds.as_numpy_iterator())['input']  # [B, L]
+    tokens = next(ds.as_numpy_iterator())['input']  # [B, T]
     return self.token_embedder.embed(tokens)  # [B, D]
 
   @property

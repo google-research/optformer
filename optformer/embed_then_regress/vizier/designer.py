@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Optimizes ICL regressor with Eagle."""
+"""Optimizes ICL regressor with Eagle. Forked from GP-Bandit."""
 
 import copy
 import random
@@ -22,6 +22,7 @@ import attrs
 import jax
 import numpy as np
 from optformer.embed_then_regress import regressor as regressor_lib
+from optformer.embed_then_regress.vizier import serializers
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
@@ -36,7 +37,7 @@ default_optimizer_factory = vb.VectorizedOptimizerFactory(
     strategy_factory=es.VectorizedEagleStrategyFactory(
         eagle_config=es.EagleStrategyConfig()
     ),
-    max_evaluations=10_000,
+    max_evaluations=1000,
     suggestion_batch_size=25,
 )
 
@@ -52,25 +53,23 @@ class TransformerICLOptDesigner(vza.Designer):
   problem: vz.ProblemStatement = attrs.field()
   regressor: regressor_lib.StatefulICLRegressor = attrs.field()
 
+  _num_seed_trials: int = attrs.field(default=1, kw_only=True)
   _optimizer_factory: vb.VectorizedOptimizerFactory = attrs.field(
       default=default_optimizer_factory, kw_only=True
   )
   _acq_fn: acq_lib.AcquisitionFunction = attrs.field(
-      default=acq_lib.UCB(),
-      kw_only=True,
+      default=acq_lib.UCB(), kw_only=True
   )
-
-  # TODO: cleanly add trust region.
-  _use_trust_region: bool = attrs.field(default=False, kw_only=True)
+  x_serializer: serializers.SuggestionSerializer = attrs.field(
+      factory=serializers.XSerializer, kw_only=True
+  )
 
   _rng: jax.Array = attrs.field(
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
   )
-
   _padding_schedule: padding.PaddingSchedule = attrs.field(
       factory=padding.PaddingSchedule, kw_only=True
   )
-  _num_seed_trials: int = attrs.field(default=1, kw_only=True)
 
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
@@ -124,7 +123,7 @@ class TransformerICLOptDesigner(vza.Designer):
       x_trials = [
           vz.Trial(params) for params in self._converter.to_parameters(xs)
       ]
-      x_strs = [self._serialize_suggestion(x_trial) for x_trial in x_trials]
+      x_strs = [self.x_serializer.to_str(x_trial) for x_trial in x_trials]
 
       if not self._history:  # If no history, use random scores.
         return jax.random.uniform(self._rng, shape=(len(x_strs),))
@@ -151,17 +150,8 @@ class TransformerICLOptDesigner(vza.Designer):
     m_name = self.problem.metric_information.item().name
     xs, ys = [], []
     for trial in completed.trials:
-      xs.append(self._serialize_suggestion(trial))
+      xs.append(self.x_serializer.to_str(trial))
       y = trial.final_measurement_or_die.metrics[m_name].value
       ys.append(y)
 
     self.regressor.absorb(xs, ys)
-
-  def _serialize_suggestion(self, sugg: vz.TrialSuggestion) -> str:
-    out = dict()
-    for key, value in sugg.parameters.as_dict().items():
-      if isinstance(value, (float, int)):
-        out[key] = format(value, '.2e')  # Scientific notation.
-      else:
-        out[key] = value
-    return str(out)

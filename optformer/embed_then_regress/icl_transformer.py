@@ -20,7 +20,6 @@ from jax import lax
 import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
-from optformer.common.models import embedders
 
 Array = jnp.ndarray | np.ndarray
 
@@ -83,7 +82,8 @@ class ICLTransformer(nn.Module):
   nhead: int  # H
   dropout: float
   num_layers: int
-  token_embedder: embedders.Embedder[jt.Int[jax.Array, 'B T']]
+  token_embedder: nn.Module  # __call__: [B, T] -> [B, D]
+  freeze_embedder: bool = True
 
   def setup(self):
     # X, Y, and concatenated X,Y embedders.
@@ -117,7 +117,7 @@ class ICLTransformer(nn.Module):
       self,
       xt: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
       yt: jt.Float[jax.Array, 'B L 1'],
-      mt: jt.Float[jax.Array, 'B T'],  # Study-level metadata.
+      mt: jt.Float[jax.Array, 'B T'],  # Study-level tokenized metadata.
       mask: jt.Float[jax.Array, 'B 1 L L'],  # Broadcasted to all heads.
       deterministic: bool | None = None,
       rng: jax.Array | None = None,
@@ -127,10 +127,13 @@ class ICLTransformer(nn.Module):
     # and no token attends to target tokens: mask[:, num_ctx:] = False
     B, L, T = xt.shape
     xt = jnp.reshape(xt, (B * L, T))
-    xt = lax.stop_gradient(self.token_embedder.embed(xt))  # [B*L, E]
+
+    if self.freeze_embedder:
+      xt = lax.stop_gradient(self.token_embedder(xt))  # [B*L, E]
     xt = jnp.reshape(xt, (B, L, -1))  # [B, L, E]
 
-    mt = lax.stop_gradient(self.token_embedder.embed(mt))  # [B, E]
+    if self.freeze_embedder:
+      mt = lax.stop_gradient(self.token_embedder(mt))  # [B, E]
     mt = jnp.expand_dims(mt, axis=1)  # [B, 1, E]
     mt = jnp.repeat(mt, L, axis=1)  # [B, L, E]
     xt = jnp.concatenate((xt, mt), axis=-1)  # [B, L, 2E]

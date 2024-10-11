@@ -14,13 +14,17 @@
 
 """Configs and their corresponding `make`-like functions."""
 
+import abc
 import dataclasses
+from flax import linen as nn
+import jax
 import optax
 from optformer.embed_then_regress import icl_transformer
+import tensorflow as tf
 
 
 @dataclasses.dataclass
-class ModelConfig:
+class ModelConfig(abc.ABC):
   """Model configuration."""
 
   d_model: int = 1024
@@ -28,9 +32,16 @@ class ModelConfig:
   nhead: int = 16
   dropout: float = 0.1
   num_layers: int = 8
+  freeze_encoder: bool = True
 
   def create_model(self) -> icl_transformer.ICLTransformer:
-    return icl_transformer.ICLTransformer(**dataclasses.asdict(self))
+    kwargs = dataclasses.asdict(self)
+    kwargs['token_embedder'] = self.create_embedder()
+    return icl_transformer.ICLTransformer(**kwargs)
+
+  @abc.abstractmethod
+  def create_embedder(self) -> nn.Module:
+    """Creates token embedder."""
 
 
 @dataclasses.dataclass
@@ -76,3 +87,32 @@ class TrainingConfig:
         schedules=[warmup_fn, cosine_fn], boundaries=[self.warmup_steps]
     )
     return schedule_fn
+
+
+@dataclasses.dataclass
+class DataConfig(abc.ABC):
+  """Data configuration, to be subclassed for each task."""
+
+  batch_size: int = 128
+  buffer_size: int = 10000
+
+  def wrap_ds(self, ds: tf.data.Dataset) -> tf.data.Dataset:
+    ds = ds.shard(jax.process_count(), jax.process_index())
+    ds = ds.repeat()
+    ds = ds.shuffle(buffer_size=self.buffer_size)
+    ds = ds.batch(self.batch_size, drop_remainder=True)
+    ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
+    return ds
+
+  @abc.abstractmethod
+  def raw_ds(self, split: str) -> tf.data.Dataset:
+    """Creates raw dataset for iterating (unbatched) examples.
+
+    Once batched, should directly be callable by `ICLTransformer`.
+
+    Args:
+      split:
+
+    Returns:
+      Raw dataset.
+    """
