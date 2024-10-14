@@ -71,17 +71,24 @@ def compress_batch(batch: Mapping[str, np.ndarray]) -> Mapping[str, np.ndarray]:
   )
 
 
-# TODO: Allow loading pretrained embedder params.
 def create_train_state(
     model: icl_transformer.ICLTransformer,
     optimizer: optax.GradientTransformation,
     example_batch: Mapping[str, np.ndarray],
-    seed: int,
+    seed: int = 0,
+    weights_override: dict[str, jax.Array] | None = None,
 ) -> TrainState:
+  """Creates initial train state with possibility to override weights."""
   rng = jax.random.PRNGKey(seed)
   example_batch = compress_batch(example_batch)
   with jax.default_device(jax.devices('cpu')[0]):
     params = model.init(rng, deterministic=False, **example_batch)
+
+    if weights_override:
+      params = params.unfreeze()
+      params.update(weights_override)
+      params = params.freeze(params)
+
     opt_state = optimizer.init(params)
   return TrainState(jnp.array(0), params, opt_state, rng)
 
@@ -105,7 +112,8 @@ def loss_fn(
 
   avg_nlogprob = jnp.sum(target_nlogprob, axis=1) / jnp.sum(target_mask, axis=1)
   loss = jnp.mean(avg_nlogprob)  # [B] -> Scalar
-  return loss, {}  # TODO: Get more metrics.
+  # TODO: Get more metrics.
+  return loss, {'loss': loss}  # pytype: disable=bad-return-type
 
 
 def train_step(
@@ -145,7 +153,7 @@ def eval_step(
   _, metrics = loss_fn(
       train_state.params, model, batch, training=False, rng=train_state.rng
   )
-  metrics = jax.lax.pmean(metrics, axis_name='batch')
+  metrics = pmean(metrics)
   return {f'eval_{k}': v for k, v in metrics.items()}
 
 
@@ -167,6 +175,7 @@ def get_checkpoint_manager(
 
 def train(
     model_config: configs.ModelConfig,
+    embedder_config: configs.T5EmbedderConfig,
     train_config: configs.TrainingConfig,
     data_config: configs.DataConfig,
 ):
@@ -179,7 +188,7 @@ def train(
   )
 
   optimizer = train_config.create_optimizer()
-  model = model_config.create_model()
+  model = model_config.create_model(embedder_config)
 
   p_train_step = pmap(functools.partial(train_step, model, optimizer))
   p_eval_step = pmap(functools.partial(eval_step, model))
@@ -217,8 +226,8 @@ def train(
   train_state = replicate(train_state)  # For pmap
   step = int(unreplicate(train_state.step))
   while step < train_config.max_steps:
-    train_state, metrics = p_train_step(train_state, next(train_it))
-    writer.write_scalars(step, metrics)
+    train_state, train_metrics = p_train_step(train_state, next(train_it))
+    writer.write_scalars(step, train_metrics)
 
     if step % train_config.validation_interval == 0:
       valid_metrics = p_eval_step(train_state, next(valid_it))

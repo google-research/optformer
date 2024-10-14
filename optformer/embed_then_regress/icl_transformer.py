@@ -17,7 +17,6 @@
 from typing import Callable
 from flax import linen as nn
 import jax
-from jax import lax
 import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
@@ -85,7 +84,6 @@ class ICLTransformer(nn.Module):
   num_layers: int
 
   embedder_factory: Callable[[], nn.Module]  # __call__: [B, T] -> [B, D]
-  freeze_embedder: bool
 
   def setup(self):
     # For embedding x and metadata tokens.
@@ -134,13 +132,9 @@ class ICLTransformer(nn.Module):
     B, L, T = x.shape
     x = jnp.reshape(x, (B * L, T))
     x = self.embed(x)  # [B*L, E]
-    if self.freeze_embedder:
-      x = lax.stop_gradient(x)
     x = jnp.reshape(x, (B, L, -1))  # [B, L, E]
 
     metadata = self.embed(metadata)  # [B, E]
-    if self.freeze_embedder:
-      metadata = lax.stop_gradient(metadata)
     metadata = jnp.expand_dims(metadata, axis=1)  # [B, 1, E]
     metadata = jnp.repeat(metadata, L, axis=1)  # [B, L, E]
     x = jnp.concatenate((x, metadata), axis=-1)  # [B, L, 2E]

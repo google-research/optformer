@@ -31,23 +31,49 @@ import tensorflow as tf
 
 Tokens = jt.Int[jax.Array, 'B T']
 SentencePieceVocabulary = seqio.SentencePieceVocabulary
-ReductionFn = Callable[
-    [jt.Float[jax.Array, 'B T D']], jt.Float[jax.Array, 'B D']
-]
+
+
+class PoolingReduction(nn.Module):
+  """Pooling reduction.
+
+  According to t-SNE, avg-pool and max-pool work well over the length axis.
+  """
+
+  def __call__(
+      self, logits: jt.Float[jax.Array, 'B T D']
+  ) -> jt.Float[jax.Array, 'B D']:
+    return jnp.average(logits, axis=-2)
+
+
+class AttentionReduction(nn.Module):
+  """Attention-based reduction."""
+
+  hidden_dim: int = 128
+
+  @nn.compact
+  def __call__(
+      self, logits: jt.Float[jax.Array, 'B T D']
+  ) -> jt.Float[jax.Array, 'B D']:
+    # Project logits to a lower dimension
+    projected_logits = nn.Dense(self.hidden_dim)(logits)  # [B, T, H]
+    # Calculate attention weights
+    attention_logits = nn.Dense(1)(projected_logits)  # [B, T, 1]
+    attention_weights = jax.nn.softmax(attention_logits, axis=1)  # [B, T, 1]
+    # Weighted average of logits
+    return jnp.sum(logits * attention_weights, axis=1)  # [B, D]
 
 
 class FlaxT5Embedder(nn.Module):
   """Low level flax embedder. Most logic forked from t5x.examples.t5.network.
 
-  The raw output of an encoder is [B, T, D]. A standard technique is to reduce
-  this tensor to length-independent [B, D].
-
-  According to t-SNE, avg-pool and max-pool work well over the length axis.
+  The raw output of an encoder is [B, T, D]. We need to reduce this tensor to
+  length-independent [B, D].
   """
 
   t5_config: t5_network.T5Config
   vocab: SentencePieceVocabulary
-  reduction_fn: ReductionFn = functools.partial(jnp.average, axis=-2)
+  reduction_factory: Callable[[], nn.Module] = PoolingReduction
+  freeze_encoder: bool = True
 
   def setup(self):
     cfg = self.t5_config
@@ -63,6 +89,7 @@ class FlaxT5Embedder(nn.Module):
     self.encoder = t5_network.Encoder(
         config=cfg, shared_embedding=self.shared_embedding
     )
+    self.reduction_fn = self.reduction_factory()
 
   # NOTE: Consider using nn.remat if backward pass OOMs.
   def __call__(self, tokens: Tokens) -> jt.Float[jax.Array, 'B D']:
@@ -71,44 +98,47 @@ class FlaxT5Embedder(nn.Module):
     )
     out = self.encoder(tokens, encoder_mask, deterministic=True)
     mask = tokens != self.vocab.pad_id
-    embeddings = out * mask[..., None]
-    embeddings: jt.Float[jax.Array, 'B T D'] = embeddings.astype(jnp.float32)
-    return self.reduction_fn(embeddings)
+    logits = out * mask[..., None]
+    logits: jt.Float[jax.Array, 'B T D'] = logits.astype(jnp.float32)
+
+    if self.freeze_encoder:
+      logits = jax.lax.stop_gradient(logits)
+    return self.reduction_fn(logits)
 
   @classmethod
-  def from_gin_file(cls, gin_file: str) -> 'FlaxT5Embedder':
+  def from_gin_file(cls, gin_file: str, **kwargs) -> 'FlaxT5Embedder':
     # NOTE: gin parsing saves config globally. Could easily cause bugs if
     # switching between different configs in same process.
     gin.parse_config_file(gin_file)
     cfg_ref = gin.query_parameter('network.Transformer.config')
     cfg = cfg_ref.scoped_configurable_fn()
     vocab = gin.query_parameter('%VOCABULARY').scoped_configurable_fn()
-    return FlaxT5Embedder(cfg, vocab)
+    return FlaxT5Embedder(cfg, vocab, **kwargs)
 
   @classmethod
-  def from_small(cls) -> 'FlaxT5Embedder':
+  def from_small(cls, **kwargs) -> 'FlaxT5Embedder':
     gin_file = 't5x/examples/t5/t5_1_1/small.gin'
-    return cls.from_gin_file(gin_file)
+    return cls.from_gin_file(gin_file, **kwargs)
 
   @classmethod
-  def from_base(cls) -> 'FlaxT5Embedder':
+  def from_base(cls, **kwargs) -> 'FlaxT5Embedder':
     gin_file = 't5x/examples/t5/t5_1_1/base.gin'
-    return cls.from_gin_file(gin_file)
+    return cls.from_gin_file(gin_file, **kwargs)
 
   @classmethod
-  def from_large(cls) -> 'FlaxT5Embedder':
+  def from_large(cls, **kwargs) -> 'FlaxT5Embedder':
     gin_file = 't5x/examples/t5/t5_1_1/large.gin'
-    return cls.from_gin_file(gin_file)
+    return cls.from_gin_file(gin_file, **kwargs)
 
   @classmethod
-  def from_xl(cls) -> 'FlaxT5Embedder':
+  def from_xl(cls, **kwargs) -> 'FlaxT5Embedder':
     gin_file = 't5x/examples/t5/t5_1_1/xl.gin'
-    return cls.from_gin_file(gin_file)
+    return cls.from_gin_file(gin_file, **kwargs)
 
   @classmethod
-  def from_xxl(cls) -> 'FlaxT5Embedder':
+  def from_xxl(cls, **kwargs) -> 'FlaxT5Embedder':
     gin_file = 't5x/examples/t5/t5_1_1/xxl.gin'
-    return cls.from_gin_file(gin_file)
+    return cls.from_gin_file(gin_file, **kwargs)
 
 
 SMALL_CKPT = 'gs://pretrained_models/t5x/t5_1_1_small/checkpoint_1000000'
@@ -153,28 +183,28 @@ class T5XTokensEmbedder(embedders.Embedder[Tokens]):
     return T5XTokensEmbedder(flax_embedder, variables)
 
   @classmethod
-  def from_small(cls) -> 'T5XTokensEmbedder':
-    flax_embedder = FlaxT5Embedder.from_small()
+  def from_small(cls, **embedder_kwargs) -> 'T5XTokensEmbedder':
+    flax_embedder = FlaxT5Embedder.from_small(**embedder_kwargs)
     return T5XTokensEmbedder.from_pretrained(flax_embedder, SMALL_CKPT)
 
   @classmethod
-  def from_base(cls) -> 'T5XTokensEmbedder':
-    flax_embedder = FlaxT5Embedder.from_base()
+  def from_base(cls, **embedder_kwargs) -> 'T5XTokensEmbedder':
+    flax_embedder = FlaxT5Embedder.from_base(**embedder_kwargs)
     return T5XTokensEmbedder.from_pretrained(flax_embedder, BASE_CKPT)
 
   @classmethod
-  def from_large(cls) -> 'T5XTokensEmbedder':
-    flax_embedder = FlaxT5Embedder.from_large()
+  def from_large(cls, **embedder_kwargs) -> 'T5XTokensEmbedder':
+    flax_embedder = FlaxT5Embedder.from_large(**embedder_kwargs)
     return T5XTokensEmbedder.from_pretrained(flax_embedder, LARGE_CKPT)
 
   @classmethod
-  def from_xl(cls) -> 'T5XTokensEmbedder':
-    flax_embedder = FlaxT5Embedder.from_xl()
+  def from_xl(cls, **embedder_kwargs) -> 'T5XTokensEmbedder':
+    flax_embedder = FlaxT5Embedder.from_xl(**embedder_kwargs)
     return T5XTokensEmbedder.from_pretrained(flax_embedder, XL_CKPT)
 
   @classmethod
-  def from_xxl(cls) -> 'T5XTokensEmbedder':
-    flax_embedder = FlaxT5Embedder.from_xxl()
+  def from_xxl(cls, **embedder_kwargs) -> 'T5XTokensEmbedder':
+    flax_embedder = FlaxT5Embedder.from_xxl(**embedder_kwargs)
     return T5XTokensEmbedder.from_pretrained(flax_embedder, XXL_CKPT)
 
 

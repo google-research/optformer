@@ -84,7 +84,6 @@ class HalfRankWarper(StatefulWarper):
     self._ranks = stats.rankdata(ys)  # All ranks within [1, H]
 
   def warp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
-
     # Only affects "bad values" (below the median).
     bad_idx = ys < self._median
 

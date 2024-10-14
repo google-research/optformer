@@ -16,7 +16,9 @@
 
 import abc
 import dataclasses
-from typing import Mapping
+import functools
+from typing import Callable
+from flax import linen as nn
 import jax
 import optax
 from optformer.embed_then_regress import icl_transformer
@@ -29,19 +31,14 @@ FlaxT5Embedder = embedders.FlaxT5Embedder
 
 
 @dataclasses.dataclass
-class ModelConfig(abc.ABC):
-  """Model configuration."""
-
-  d_model: int = 1024
-  ffw_dim_ratio: int = 4
-  nhead: int = 16
-  dropout: float = 0.1
-  num_layers: int = 8
+class T5EmbedderConfig:
+  """T5 embedder configuration."""
 
   t5_embedder: str = 'small'
-  freeze_embedder: bool = False
+  reduction: str = 'attention'
+  freeze_encoder: bool = False
 
-  def create_model(self) -> icl_transformer.ICLTransformer:
+  def create_embedder_factory(self) -> Callable[[], nn.Module]:
     """Create t5-based embedder and send to ICLTransformer."""
     if self.t5_embedder == 'small':
       embedder_factory = FlaxT5Embedder.from_small
@@ -56,11 +53,40 @@ class ModelConfig(abc.ABC):
     else:
       raise ValueError(f'Unknown T5 embedder: {self.t5_embedder}')
 
-    kwargs = dataclasses.asdict(self)
-    kwargs.pop('t5_embedder')
-    kwargs['embedder_factory'] = embedder_factory
+    if self.reduction == 'pooling':
+      reduction_factory = embedders.PoolingReduction
+    elif self.reduction == 'attention':
+      reduction_factory = embedders.AttentionReduction
+    else:
+      raise ValueError(f'Unknown reduction: {self.reduction}')
 
-    return icl_transformer.ICLTransformer(**kwargs)
+    return functools.partial(
+        embedder_factory,
+        reduction_factory=reduction_factory,
+        freeze_encoder=self.freeze_encoder,
+    )
+
+
+@dataclasses.dataclass
+class ModelConfig:
+  """Model configuration."""
+
+  d_model: int = 1024
+  ffw_dim_ratio: int = 4
+  nhead: int = 16
+  dropout: float = 0.1
+  num_layers: int = 8
+
+  def create_model(
+      self, embedder_config: T5EmbedderConfig
+  ) -> icl_transformer.ICLTransformer:
+
+    kwargs = dataclasses.asdict(self)
+    embedder_factory = embedder_config.create_embedder_factory()
+
+    return icl_transformer.ICLTransformer(
+        embedder_factory=embedder_factory, **kwargs
+    )
 
 
 @dataclasses.dataclass
@@ -109,18 +135,12 @@ class TrainingConfig:
     return schedule_fn
 
 
-def _device_partition(ele: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
-  """Gives a device count leading dimension, required by jax.pmap."""
-  num_devices = jax.local_device_count()
-  fn = lambda x: tf.reshape(x, [num_devices, -1] + tf.shape(x)[1:])
-  return tf.nest.map_structure(fn, ele)
-
-
 @dataclasses.dataclass
 class DataConfig(abc.ABC):
   """Data configuration, to be subclassed for each task."""
 
-  per_device_batch_size: int = 1
+  # Maximum batch size for A100 GPU w/ trainable small T5 embedder.
+  per_device_batch_size: int = 4
   buffer_size: int = 10000
 
   def wrap_ds(

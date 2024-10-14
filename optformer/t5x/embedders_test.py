@@ -12,9 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import jax
 import jax.numpy as jnp
 from optformer.t5x import embedders
 from absl.testing import absltest
+from absl.testing import parameterized
+
+
+class FlaxEmbedderTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      (embedders.PoolingReduction,),
+      (embedders.AttentionReduction,),
+  )
+  def test_different_reductions(self, reduction_factory):
+    embedder = embedders.FlaxT5Embedder.from_small()
+    embedder.reduction_factory = reduction_factory
+
+    batch_size = 2
+    length = 10
+
+    tokens = jnp.ones((batch_size, length))
+    params = embedder.init(jax.random.PRNGKey(0), tokens)
+    result = embedder.apply(params, tokens)
+
+    self.assertIsInstance(result, jnp.ndarray)
+    self.assertEqual(result.shape, (batch_size, embedder.t5_config.emb_dim))
+    self.assertEqual(result.dtype, jnp.float32)
 
 
 class T5XTokensEmbedderTest(absltest.TestCase):
