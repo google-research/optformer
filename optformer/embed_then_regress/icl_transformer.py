@@ -14,6 +14,7 @@
 
 """Transformer model for ICL regression."""
 
+from typing import Callable
 from flax import linen as nn
 import jax
 from jax import lax
@@ -42,7 +43,7 @@ class Block(nn.Module):
 
     self.pre_ffw_norm = nn.LayerNorm()
     self.ffw = nn.Sequential(
-        [nn.Dense(self.self.hidden_dim), nn.relu, nn.Dense(self.d_model)]
+        [nn.Dense(self.hidden_dim), nn.relu, nn.Dense(self.d_model)]
     )
 
     self.dropout = nn.Dropout(rate=self.dropout_rate)
@@ -82,18 +83,22 @@ class ICLTransformer(nn.Module):
   nhead: int  # H
   dropout: float
   num_layers: int
-  token_embedder: nn.Module  # __call__: [B, T] -> [B, D]
-  freeze_embedder: bool = True
+
+  embedder_factory: Callable[[], nn.Module]  # __call__: [B, T] -> [B, D]
+  freeze_embedder: bool
 
   def setup(self):
+    # For embedding x and metadata tokens.
+    self.embedder = self.embedder_factory()
+
     # X, Y, and concatenated X,Y embedders.
-    self.x_embedder = nn.Sequential(
+    self.x_proj = nn.Sequential(
         [nn.Dense(self.d_model), nn.relu, nn.Dense(self.d_model)]
     )
-    self.y_embedder = nn.Sequential(
+    self.y_proj = nn.Sequential(
         [nn.Dense(self.d_model), nn.relu, nn.Dense(self.d_model)]
     )
-    self.x_y_embedder = nn.Sequential(
+    self.xy_proj = nn.Sequential(
         [nn.Dense(self.d_model * 2), nn.relu, nn.Dense(self.d_model)]
     )
 
@@ -115,32 +120,43 @@ class ICLTransformer(nn.Module):
 
   def __call__(
       self,
-      xt: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
-      yt: jt.Float[jax.Array, 'B L 1'],
-      mt: jt.Float[jax.Array, 'B T'],  # Study-level tokenized metadata.
-      mask: jt.Float[jax.Array, 'B 1 L L'],  # Broadcasted to all heads.
+      x: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
+      y: jt.Float[jax.Array, 'B L'],
+      metadata: jt.Int[jax.Array, 'B T'],  # Study-level tokenized metadata.
+      mask: jt.Bool[jax.Array, 'B L L'],
       deterministic: bool | None = None,
       rng: jax.Array | None = None,
   ) -> tuple[jt.Float[jax.Array, 'B L'], jt.Float[jax.Array, 'B L']]:
     # pylint: disable=invalid-name
+    # For non-batched mask of shape [L, L]:
     # All tokens attend to context tokens: mask[:, :num_ctx] = True
     # and no token attends to target tokens: mask[:, num_ctx:] = False
-    B, L, T = xt.shape
-    xt = jnp.reshape(xt, (B * L, T))
-
+    B, L, T = x.shape
+    x = jnp.reshape(x, (B * L, T))
+    x = self.embed(x)  # [B*L, E]
     if self.freeze_embedder:
-      xt = lax.stop_gradient(self.token_embedder(xt))  # [B*L, E]
-    xt = jnp.reshape(xt, (B, L, -1))  # [B, L, E]
+      x = lax.stop_gradient(x)
+    x = jnp.reshape(x, (B, L, -1))  # [B, L, E]
 
+    metadata = self.embed(metadata)  # [B, E]
     if self.freeze_embedder:
-      mt = lax.stop_gradient(self.token_embedder(mt))  # [B, E]
-    mt = jnp.expand_dims(mt, axis=1)  # [B, 1, E]
-    mt = jnp.repeat(mt, L, axis=1)  # [B, L, E]
-    xt = jnp.concatenate((xt, mt), axis=-1)  # [B, L, 2E]
+      metadata = lax.stop_gradient(metadata)
+    metadata = jnp.expand_dims(metadata, axis=1)  # [B, 1, E]
+    metadata = jnp.repeat(metadata, L, axis=1)  # [B, L, E]
+    x = jnp.concatenate((x, metadata), axis=-1)  # [B, L, 2E]
 
-    xt_emb = self.x_embedder(xt)
-    yt_emb = self.y_embedder(yt)
-    xy_emb = self.x_y_embedder(jnp.concatenate((xt_emb, yt_emb), axis=-1))
+    xt_emb = self.x_proj(x)  # [B, L, D]
+
+    # Force 0.0 values for target points using the mask.
+    mask_row = mask[:, 0, :]  # [B, L]
+    y = y * mask_row  # [B, L], element-wise multiplication
+
+    y = jnp.expand_dims(y, axis=-1)  # [B, L, 1]
+    yt_emb = self.y_proj(y)  # [B, L, D]
+    xy_emb = self.xy_proj(jnp.concatenate((xt_emb, yt_emb), axis=-1))
+
+    # Broadcast mask to all heads.
+    mask = jnp.expand_dims(mask, axis=1)  # [B, 1, L, L]
 
     out = xy_emb
     for layer in self.encoder_layers:
@@ -152,3 +168,7 @@ class ICLTransformer(nn.Module):
     mean = jnp.squeeze(mean, axis=-1)
     std = jnp.squeeze(std, axis=-1)
     return mean, std
+
+  @nn.remat  # Reduce memory consumption during backward pass.
+  def embed(self, tokens: jt.Int[jax.Array, 'X T']):
+    return self.embedder(tokens)

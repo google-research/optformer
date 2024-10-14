@@ -16,11 +16,16 @@
 
 import abc
 import dataclasses
-from flax import linen as nn
+from typing import Mapping
 import jax
 import optax
 from optformer.embed_then_regress import icl_transformer
+from optformer.t5x import embedders
+import seqio
 import tensorflow as tf
+
+DatasetFnCallable = seqio.DatasetFnCallable
+FlaxT5Embedder = embedders.FlaxT5Embedder
 
 
 @dataclasses.dataclass
@@ -32,16 +37,30 @@ class ModelConfig(abc.ABC):
   nhead: int = 16
   dropout: float = 0.1
   num_layers: int = 8
-  freeze_encoder: bool = True
+
+  t5_embedder: str = 'small'
+  freeze_embedder: bool = False
 
   def create_model(self) -> icl_transformer.ICLTransformer:
-    kwargs = dataclasses.asdict(self)
-    kwargs['token_embedder'] = self.create_embedder()
-    return icl_transformer.ICLTransformer(**kwargs)
+    """Create t5-based embedder and send to ICLTransformer."""
+    if self.t5_embedder == 'small':
+      embedder_factory = FlaxT5Embedder.from_small
+    elif self.t5_embedder == 'base':
+      embedder_factory = FlaxT5Embedder.from_base
+    elif self.t5_embedder == 'large':
+      embedder_factory = FlaxT5Embedder.from_large
+    elif self.t5_embedder == 'xl':
+      embedder_factory = FlaxT5Embedder.from_xl
+    elif self.t5_embedder == 'xxl':
+      embedder_factory = FlaxT5Embedder.from_xxl
+    else:
+      raise ValueError(f'Unknown T5 embedder: {self.t5_embedder}')
 
-  @abc.abstractmethod
-  def create_embedder(self) -> nn.Module:
-    """Creates token embedder."""
+    kwargs = dataclasses.asdict(self)
+    kwargs.pop('t5_embedder')
+    kwargs['embedder_factory'] = embedder_factory
+
+    return icl_transformer.ICLTransformer(**kwargs)
 
 
 @dataclasses.dataclass
@@ -60,6 +79,7 @@ class TrainingConfig:
   seed: int = 42
 
   validation_interval: int = 1000
+  checkpoint_interval: int = 100
   workdir = '../checkpoints'
 
   def create_optimizer(self) -> optax.GradientTransformation:
@@ -89,30 +109,41 @@ class TrainingConfig:
     return schedule_fn
 
 
+def _device_partition(ele: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
+  """Gives a device count leading dimension, required by jax.pmap."""
+  num_devices = jax.local_device_count()
+  fn = lambda x: tf.reshape(x, [num_devices, -1] + tf.shape(x)[1:])
+  return tf.nest.map_structure(fn, ele)
+
+
 @dataclasses.dataclass
 class DataConfig(abc.ABC):
   """Data configuration, to be subclassed for each task."""
 
-  batch_size: int = 128
+  per_device_batch_size: int = 1
   buffer_size: int = 10000
 
-  def wrap_ds(self, ds: tf.data.Dataset) -> tf.data.Dataset:
+  def wrap_ds(
+      self, ds: tf.data.Dataset, multi_gpu: bool = False
+  ) -> tf.data.Dataset:
+    """This should be used at the trainer level."""
     ds = ds.shard(jax.process_count(), jax.process_index())
     ds = ds.repeat()
     ds = ds.shuffle(buffer_size=self.buffer_size)
-    ds = ds.batch(self.batch_size, drop_remainder=True)
+
+    ds = ds.batch(self.per_device_batch_size, drop_remainder=True)
+    if multi_gpu:  # Device count leading dimension, required by jax.pmap.
+      ds = ds.batch(jax.local_device_count(), drop_remainder=True)
     ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
     return ds
 
   @abc.abstractmethod
-  def raw_ds(self, split: str) -> tf.data.Dataset:
-    """Creates raw dataset for iterating (unbatched) examples.
+  def seqio_dataset_fn(self) -> DatasetFnCallable:
+    """Creates seqio dataset fn for iterating (unbatched) examples.
 
-    Once batched, should directly be callable by `ICLTransformer`.
-
-    Args:
-      split:
+    SeqIO DatasetFn also allows shuffling / splitting. Once batched, these
+    examples should directly be callable by the model.
 
     Returns:
-      Raw dataset.
+      SeqIO dataset fn.
     """

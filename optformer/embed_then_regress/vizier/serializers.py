@@ -18,6 +18,7 @@ from optformer.common import serialization as s_lib
 from vizier import pyvizier as vz
 
 SuggestionSerializer = s_lib.Serializer[vz.TrialSuggestion]
+ProblemSerializer = s_lib.Serializer[vz.ProblemAndTrials]
 
 
 class XSerializer(SuggestionSerializer):

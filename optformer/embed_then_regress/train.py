@@ -15,51 +15,96 @@
 """Training functions."""
 
 import functools
-from typing import Mapping
+from typing import Any, Mapping
+from absl import logging
 from clu import metric_writers
+from etils import epath
 import flax
 import flax.typing as flax_typing
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+from optformer.common.data import datasets as ds_lib
 from optformer.embed_then_regress import configs
 from optformer.embed_then_regress import icl_transformer
+from orbax import checkpoint as orbax_checkpoint
+import tensorflow as tf
+
+
+def multi_gpu() -> bool:
+  return jax.local_device_count() > 1
+
+
+def replicate(x: Any) -> Any:
+  return flax.jax_utils.replicate(x) if multi_gpu() else x
+
+
+def unreplicate(x: Any) -> Any:
+  return flax.jax_utils.unreplicate(x) if multi_gpu() else x
+
+
+def pmean(x: Any) -> Any:
+  # Re-use same axis_name as in the call to `pmap(...train_step...)` below.
+  return jax.lax.pmean(x, axis_name='batch') if multi_gpu() else x
+
+
+def pmap(f: Any) -> Any:
+  return jax.pmap(f, axis_name='batch') if multi_gpu() else jax.jit(f)
 
 
 @flax.struct.dataclass
 class TrainState:
-  step: int
+  step: jax.Array  # Scalar
   params: flax_typing.FrozenVariableDict
   opt_state: optax.OptState
+  rng: jax.Array
+
+
+def compress_batch(batch: Mapping[str, np.ndarray]) -> Mapping[str, np.ndarray]:
+  """Compresses batch to reduce memory usage during initialization."""
+  if multi_gpu():
+    batch = jax.tree.map(lambda t: t[0], batch)  # Drop device dim.
+  # Slice from all axis (batch, regressor, token).
+  return jax.tree.map(
+      lambda t: jax.lax.dynamic_slice(t, [0] * t.ndim, [1] * t.ndim), batch
+  )
 
 
 # TODO: Allow loading pretrained embedder params.
 def create_train_state(
     model: icl_transformer.ICLTransformer,
     optimizer: optax.GradientTransformation,
-    batch: Mapping[str, np.ndarray],
+    example_batch: Mapping[str, np.ndarray],
+    seed: int,
 ) -> TrainState:
-  params = model.init(jax.random.PRNGKey(0), **batch)
-  return TrainState(0, params, optimizer.init(params))
+  rng = jax.random.PRNGKey(seed)
+  example_batch = compress_batch(example_batch)
+  with jax.default_device(jax.devices('cpu')[0]):
+    params = model.init(rng, deterministic=False, **example_batch)
+    opt_state = optimizer.init(params)
+  return TrainState(jnp.array(0), params, opt_state, rng)
 
 
 def loss_fn(
     params: flax_typing.FrozenVariableDict,
     model: icl_transformer.ICLTransformer,
     batch: Mapping[str, np.ndarray],
+    training: bool,
     rng: jax.Array,
 ) -> tuple[jax.Array, Mapping[str, float]]:
   """Loss function with metrics."""
   # pylint: disable=invalid-name
-  mean, std = model.apply(params, rng=rng, **batch)
-  loss = -jax.scipy.stats.norm.logpdf(batch['batch_y'], mean, std)  # B, N, 1
+  mean, std = model.apply(params, deterministic=not training, rng=rng, **batch)
+  nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std)  # [B, L]
 
   # Only compute loss over target ys. Mask is Bx1xNxN where mask[i, j] = True
-  # if # j is a context token and False otherwise.
-  B, N, _ = loss.shape
-  target_mask = 1 - batch['mask'][:, 0, 0, :].reshape((B, N, 1))
-  loss = jnp.sum(loss * target_mask) / jnp.sum(target_mask)
+  # if j is a context token and False otherwise.
+  target_mask = 1 - batch['mask'][:, 0, :]  # [B, L]
+  target_nlogprob = nlogprob * target_mask  # [B, L]
+
+  avg_nlogprob = jnp.sum(target_nlogprob, axis=1) / jnp.sum(target_mask, axis=1)
+  loss = jnp.mean(avg_nlogprob)  # [B] -> Scalar
   return loss, {}  # TODO: Get more metrics.
 
 
@@ -68,27 +113,56 @@ def train_step(
     optimizer: optax.GradientTransformation,
     train_state: TrainState,
     batch: Mapping[str, np.ndarray],
-    rng: jax.Array,
-) -> tuple[TrainState, jax.Array, Mapping[str, float]]:
+) -> tuple[TrainState, Mapping[str, float]]:
   """Train for a single step."""
-  dropout_rng, new_rng = jax.random.split(rng)
+  dropout_rng, new_rng = jax.random.split(train_state.rng)
 
   loss_fn_with_rng = functools.partial(
-      loss_fn, model=model, batch=batch, rng=dropout_rng
+      loss_fn, model=model, batch=batch, training=True, rng=dropout_rng
   )
 
   grad_fn = jax.value_and_grad(loss_fn_with_rng, has_aux=True)
   (_, metrics), grads = grad_fn(train_state.params)
 
-  # Re-use same axis_name as in the call to `pmap(...train_step...)` below.
-  grads = jax.lax.pmean(grads, axis_name='batch')
   updates, new_opt_state = optimizer.update(
-      grads, train_state.opt_state, train_state.params
+      pmean(grads), train_state.opt_state, train_state.params
   )
   new_params = optax.apply_updates(train_state.params, updates)
-  new_state = TrainState(train_state.step + 1, new_params, new_opt_state)
+  new_state = TrainState(
+      train_state.step + 1, new_params, new_opt_state, new_rng
+  )
 
-  return new_state, new_rng, metrics
+  metrics = {f'train_{k}': v for k, v in metrics.items()}
+  return new_state, metrics
+
+
+def eval_step(
+    model: icl_transformer.ICLTransformer,
+    train_state: TrainState,
+    batch: Mapping[str, np.ndarray],
+) -> Mapping[str, float]:
+  """Evaluation step."""
+  _, metrics = loss_fn(
+      train_state.params, model, batch, training=False, rng=train_state.rng
+  )
+  metrics = jax.lax.pmean(metrics, axis_name='batch')
+  return {f'eval_{k}': v for k, v in metrics.items()}
+
+
+def get_checkpoint_manager(
+    workdir: epath.PathLike,
+) -> orbax_checkpoint.CheckpointManager:
+  """Sets up Orbax checkpointing."""
+  # The keys in this dict should match the keys in `checkpointed_state`.
+  checkpointers = dict(
+      train_state=orbax_checkpoint.PyTreeCheckpointer(),
+  )
+  checkpoint_dir = epath.Path(workdir) / 'checkpoints'
+  return orbax_checkpoint.CheckpointManager(
+      checkpoint_dir,
+      checkpointers=checkpointers,
+      options=orbax_checkpoint.CheckpointManagerOptions(create=True),
+  )
 
 
 def train(
@@ -97,31 +171,63 @@ def train(
     data_config: configs.DataConfig,
 ):
   """Training loop."""
+  # tf.data.AUTOTUNE can put data on GPU, causing extreme OOMs. Disable it.
+  tf.config.set_visible_devices([], device_type='GPU')
+
   writer = metric_writers.create_default_writer(
       train_config.workdir, just_logging=jax.process_index() > 0
   )
 
   optimizer = train_config.create_optimizer()
   model = model_config.create_model()
-  rng = jax.random.PRNGKey(train_config.seed)
 
-  f_train_step = functools.partial(train_step, model=model, optimizer=optimizer)
-  p_train_step = jax.pmap(f_train_step, axis_name='batch')
+  p_train_step = pmap(functools.partial(train_step, model, optimizer))
+  p_eval_step = pmap(functools.partial(eval_step, model))
 
-  train_ds = data_config.wrap_ds(data_config.raw_ds('train'))
+  ds_fn = data_config.seqio_dataset_fn()
+  ds_fn = ds_lib.DistributedSeqioDatasetFn(ds_fn)
+
+  train_ds = ds_fn('train', shuffle_files=True)
+  train_ds = data_config.wrap_ds(train_ds, multi_gpu())
   train_it = train_ds.as_numpy_iterator()
-  valid_ds = data_config.wrap_ds(data_config.raw_ds('validation'))
+
+  valid_ds = ds_fn('validation', shuffle_files=True)
+  valid_ds = data_config.wrap_ds(valid_ds, multi_gpu())
   valid_it = valid_ds.as_numpy_iterator()
 
-  train_state = create_train_state(model, optimizer, next(train_it))
-  for step in range(train_config.max_steps):
-    batch = next(train_it)
-    train_state, rng, metrics = p_train_step(
-        model, optimizer, train_state, batch, rng
+  train_state = create_train_state(
+      model,
+      optimizer,
+      next(train_it),
+      train_config.seed,
+  )
+
+  # Set up checkpointing
+  checkpoint_manager = get_checkpoint_manager(train_config.workdir)
+  # Restore if available.
+  latest_step = checkpoint_manager.latest_step()
+  if latest_step is not None:
+    restored_state = checkpoint_manager.restore(
+        latest_step,
+        items=dict(train_state=train_state),  # initial train_state template
     )
+    train_state = restored_state['train_state']
+    logging.info('Restored checkpoint from step %d', latest_step)
+
+  train_state = replicate(train_state)  # For pmap
+  step = int(unreplicate(train_state.step))
+  while step < train_config.max_steps:
+    train_state, metrics = p_train_step(train_state, next(train_it))
     writer.write_scalars(step, metrics)
 
     if step % train_config.validation_interval == 0:
-      valid_batch = next(valid_it)
-      _, valid_metrics = loss_fn(train_state.params, model, valid_batch, rng)
+      valid_metrics = p_eval_step(train_state, next(valid_it))
+      valid_metrics = unreplicate(valid_metrics)
       writer.write_scalars(step, valid_metrics)
+
+    if step % train_config.checkpoint_interval == 0:
+      ckpt_train_state = unreplicate(train_state)
+      checkpoint_manager.save(
+          step, items=dict(train_state=jax.tree.map(np.array, ckpt_train_state))
+      )
+    step = int(unreplicate(train_state.step))

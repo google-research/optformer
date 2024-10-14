@@ -67,14 +67,14 @@ class StatefulICLRegressor:
 
     temp_yt = np.copy(self._all_yt)
     temp_yt = self.warper.warp(temp_yt)
-    temp_yt = np.expand_dims(temp_yt, axis=(0, -1))  # [B=1, L, 1]
+    temp_yt = np.expand_dims(temp_yt, axis=0)  # [B=1, L]
 
     temp_mt = np.copy(self._mt)
     temp_mt = np.expand_dims(temp_mt, axis=(0))  # [B=1, T]
 
     mask = np.ones((self.max_trial_length, self.max_trial_length), dtype=bool)
     mask[:, self._num_prev :] = False
-    mask = np.expand_dims(mask, axis=(0, 1))  # [B=1, H=1, L, L]
+    mask = np.expand_dims(mask, axis=0)  # [B=1, L, L]
 
     mean, std = self._jit_apply(
         self.params,
