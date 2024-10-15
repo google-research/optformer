@@ -15,6 +15,7 @@
 """Serializers for Vizier data."""
 
 from optformer.common import serialization as s_lib
+from optformer.vizier import serialization as vs_lib
 from vizier import pyvizier as vz
 
 SuggestionSerializer = s_lib.Serializer[vz.TrialSuggestion]
@@ -22,13 +23,15 @@ ProblemSerializer = s_lib.Serializer[vz.ProblemAndTrials]
 
 
 class XSerializer(SuggestionSerializer):
-  """Basic serializer for Vizier parameters."""
+  """Basic serializer for Vizier parameters and metadata."""
 
   def to_str(self, t: vz.TrialSuggestion, /) -> str:
-    out = dict()
+    param_dict = dict()
     for key, value in t.parameters.as_dict().items():
       if isinstance(value, (float, int)):
-        out[key] = format(value, '.2e')  # Scientific notation.
+        param_dict[key] = format(value, '.2e')  # Scientific notation.
       else:
-        out[key] = value
-    return str(out)
+        param_dict[key] = value
+
+    metadata_str = vs_lib.MetadataSerializer().to_str(t.metadata)
+    return str({'params': param_dict, 'metadata': metadata_str})

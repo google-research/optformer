@@ -14,6 +14,7 @@
 
 """Transformer model for ICL regression."""
 
+import functools
 from typing import Callable
 from flax import linen as nn
 import jax
@@ -22,6 +23,12 @@ import jaxtyping as jt
 import numpy as np
 
 Array = jnp.ndarray | np.ndarray
+
+# Lower initialization is necessary to start off with reasonably scaled output
+# distribution and prevent exploding gradients / bad initial loss values.
+Dense = functools.partial(
+    nn.Dense, kernel_init=nn.initializers.truncated_normal()
+)
 
 
 class Block(nn.Module):
@@ -42,7 +49,7 @@ class Block(nn.Module):
 
     self.pre_ffw_norm = nn.LayerNorm()
     self.ffw = nn.Sequential(
-        [nn.Dense(self.hidden_dim), nn.relu, nn.Dense(self.d_model)]
+        [Dense(self.hidden_dim), nn.relu, Dense(self.d_model)]
     )
 
     self.dropout = nn.Dropout(rate=self.dropout_rate)
@@ -91,13 +98,13 @@ class ICLTransformer(nn.Module):
 
     # X, Y, and concatenated X,Y embedders.
     self.x_proj = nn.Sequential(
-        [nn.Dense(self.d_model), nn.relu, nn.Dense(self.d_model)]
+        [Dense(self.d_model), nn.relu, Dense(self.d_model)]
     )
     self.y_proj = nn.Sequential(
-        [nn.Dense(self.d_model), nn.relu, nn.Dense(self.d_model)]
+        [Dense(self.d_model), nn.relu, Dense(self.d_model)]
     )
     self.xy_proj = nn.Sequential(
-        [nn.Dense(self.d_model * 2), nn.relu, nn.Dense(self.d_model)]
+        [Dense(self.d_model * 2), nn.relu, Dense(self.d_model)]
     )
 
     # Attention blocks with customizable masks.
@@ -113,7 +120,7 @@ class ICLTransformer(nn.Module):
 
     # Predict mean and logstd.
     self.mean_logstd_head = nn.Sequential(
-        [nn.Dense(self.d_model), nn.relu, nn.Dense(2)]
+        [Dense(self.d_model), nn.relu, Dense(2)]
     )
 
   def __call__(

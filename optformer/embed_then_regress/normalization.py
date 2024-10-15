@@ -125,7 +125,7 @@ class LinearScalingWarper(StatefulWarper):
     self._y_max = np.max(ys)
 
   def warp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
-    norm_diff = (ys - self._y_min) / (self._y_max - self._y_min) - 0.5
+    norm_diff = (ys - self._y_min) / (self._y_max - self._y_min + _EPS) - 0.5
     return 2.0 * norm_diff
 
   def unwarp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
@@ -167,8 +167,8 @@ class SigmoidDampenWarper(StatefulWarper):
     return -np.log(2.0 / (warped + 1.0) - 1 + _EPS) / self._curvature
 
 
-class HyperbolicDampenWarper(StatefulWarper):
-  """Hyperbolic dampening function to map R -> [-scale, scale]."""
+class SoftSignDampenWarper(StatefulWarper):
+  """SoftSign dampening function to map R -> [-scale, scale]."""
 
   def __init__(self, power: float = 0.5, scale: float = 2.0):
     self._power = power

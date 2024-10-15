@@ -18,6 +18,8 @@ If you found this codebase useful, please consider citing our paper. Thanks!
   title        = {Predicting from Strings: Language Model Embeddings for Bayesian Optimization},
   journal      = {CoRR},
   year         = {2024},
-  eprinttype    = {arXiv},
+  eprint       = {2410.10190},
+  primaryClass = {cs.LG},
+  url          = {https://arxiv.org/abs/2410.10190},
 }
 ```

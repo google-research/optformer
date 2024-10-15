@@ -93,12 +93,12 @@ class ModelConfig:
 class TrainingConfig:
   """Training configuration."""
 
-  base_lr: float = 5e-7
+  base_lr: float = 3e-5
   warmup_steps: int = 10000
   max_steps: int = 100000
   weight_decay: float = 1e-5
   gradient_clip: float = 0.5
-  grad_accum_steps: int = 4
+  grad_accum_steps: int = 1
 
   min_n_context: int = 10
   max_n_context: int = 100
@@ -147,12 +147,15 @@ class DataConfig(abc.ABC):
 
   # Maximum batch size for A100 GPU w/ trainable small T5 embedder.
   per_device_batch_size: int = 4
+  max_token_length: int = 256
+
   buffer_size: int = 10000
 
   def wrap_ds(
       self, ds: tf.data.Dataset, multi_gpu: bool = False
   ) -> tf.data.Dataset:
     """This should be used at the trainer level."""
+    ds = self._tokenize_ds(ds)
     ds = ds.shard(jax.process_count(), jax.process_index())
     ds = ds.repeat()
     ds = ds.shuffle(buffer_size=self.buffer_size)
@@ -161,6 +164,35 @@ class DataConfig(abc.ABC):
     if multi_gpu:  # Device count leading dimension, required by jax.pmap.
       ds = ds.batch(jax.local_device_count(), drop_remainder=True)
     ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
+    return ds
+
+  def _tokenize_ds(self, ds: tf.data.Dataset) -> tf.data.Dataset:
+    """Tokenizes trajectories."""
+    vocab = self.create_vocab()
+    output_features = {
+        'x': seqio.Feature(vocab, add_eos=False),
+        'metadata': seqio.Feature(vocab, add_eos=False),
+    }
+    ds = seqio.preprocessors.tokenize(
+        ds,
+        output_features=output_features,
+        copy_pretokenized=False,
+        with_eos=False,
+    )
+
+    feature_lengths = {
+        'x': self.max_token_length,
+        'metadata': self.max_token_length,
+    }
+    # Fancy logic since trimming/padding only affects the first dimension.
+    transpose_x_only = lambda d: {
+        k: tf.transpose(v.to_tensor()) if k == 'x' else v for k, v in d.items()
+    }
+    ds = ds.map(transpose_x_only)
+    ds = seqio.trim_and_pad_dataset(ds, feature_lengths)
+    ds = ds.map(
+        lambda d: {k: tf.transpose(v) if k == 'x' else v for k, v in d.items()}
+    )
     return ds
 
   @abc.abstractmethod
@@ -173,3 +205,7 @@ class DataConfig(abc.ABC):
     Returns:
       SeqIO dataset fn.
     """
+
+  @abc.abstractmethod
+  def create_vocab(self) -> seqio.Vocabulary:
+    """Returns the vocabulary used for tokenization."""
