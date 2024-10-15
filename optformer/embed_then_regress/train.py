@@ -32,8 +32,12 @@ from orbax import checkpoint as orbax_checkpoint
 import tensorflow as tf
 
 
+Scalar = jnp.ndarray | np.ndarray | float
+EPS = 1e-7
+
+
 def multi_gpu() -> bool:
-  return jax.local_device_count() > 1
+  return jax.device_count() > 1
 
 
 def replicate(x: Any) -> Any:
@@ -99,11 +103,11 @@ def loss_fn(
     batch: Mapping[str, np.ndarray],
     training: bool,
     rng: jax.Array,
-) -> tuple[jax.Array, Mapping[str, float]]:
+) -> tuple[jax.Array, Mapping[str, Scalar]]:
   """Loss function with metrics."""
   # pylint: disable=invalid-name
   mean, std = model.apply(params, deterministic=not training, rng=rng, **batch)
-  nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std)  # [B, L]
+  nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std + EPS)  # [B, L]
 
   # Only compute loss over target ys. Mask is Bx1xNxN where mask[i, j] = True
   # if j is a context token and False otherwise.
@@ -113,7 +117,7 @@ def loss_fn(
   avg_nlogprob = jnp.sum(target_nlogprob, axis=1) / jnp.sum(target_mask, axis=1)
   loss = jnp.mean(avg_nlogprob)  # [B] -> Scalar
   # TODO: Get more metrics.
-  return loss, {'loss': loss}  # pytype: disable=bad-return-type
+  return loss, {'loss': loss}
 
 
 def train_step(
@@ -121,7 +125,7 @@ def train_step(
     optimizer: optax.GradientTransformation,
     train_state: TrainState,
     batch: Mapping[str, np.ndarray],
-) -> tuple[TrainState, Mapping[str, float]]:
+) -> tuple[TrainState, Mapping[str, Scalar]]:
   """Train for a single step."""
   dropout_rng, new_rng = jax.random.split(train_state.rng)
 
@@ -131,7 +135,6 @@ def train_step(
 
   grad_fn = jax.value_and_grad(loss_fn_with_rng, has_aux=True)
   (_, metrics), grads = grad_fn(train_state.params)
-
   updates, new_opt_state = optimizer.update(
       pmean(grads), train_state.opt_state, train_state.params
   )
@@ -148,12 +151,11 @@ def eval_step(
     model: icl_transformer.ICLTransformer,
     train_state: TrainState,
     batch: Mapping[str, np.ndarray],
-) -> Mapping[str, float]:
+) -> Mapping[str, Scalar]:
   """Evaluation step."""
   _, metrics = loss_fn(
       train_state.params, model, batch, training=False, rng=train_state.rng
   )
-  metrics = pmean(metrics)
   return {f'eval_{k}': v for k, v in metrics.items()}
 
 
@@ -227,12 +229,11 @@ def train(
   step = int(unreplicate(train_state.step))
   while step < train_config.max_steps:
     train_state, train_metrics = p_train_step(train_state, next(train_it))
-    writer.write_scalars(step, train_metrics)
+    writer.write_scalars(step, jax.tree.map(jnp.mean, train_metrics))
 
     if step % train_config.validation_interval == 0:
       valid_metrics = p_eval_step(train_state, next(valid_it))
-      valid_metrics = unreplicate(valid_metrics)
-      writer.write_scalars(step, valid_metrics)
+      writer.write_scalars(step, jax.tree.map(jnp.mean, valid_metrics))
 
     if step % train_config.checkpoint_interval == 0:
       ckpt_train_state = unreplicate(train_state)

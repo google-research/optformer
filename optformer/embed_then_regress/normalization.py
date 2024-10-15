@@ -167,6 +167,25 @@ class SigmoidDampenWarper(StatefulWarper):
     return -np.log(2.0 / (warped + 1.0) - 1 + _EPS) / self._curvature
 
 
+class HyperbolicDampenWarper(StatefulWarper):
+  """Hyperbolic dampening function to map R -> [-scale, scale]."""
+
+  def __init__(self, power: float = 0.5, scale: float = 2.0):
+    self._power = power
+    self._scale = scale
+
+  def train(self, ys: jt.Float[np.ndarray, 'H']) -> None:
+    pass
+
+  def warp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
+    power_abs = np.power(np.abs(ys), self._power, dtype=ys.dtype)
+    warped = np.sign(ys) * power_abs / (1 + power_abs)
+    return self._scale * warped
+
+  def unwarp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
+    raise NotImplementedError('Not done yet')
+
+
 class SequentialWarper(StatefulWarper):
   """Applies a sequence of warpers."""
 
@@ -196,5 +215,5 @@ def default_warper() -> StatefulWarper:
   return SequentialWarper([
       HalfRankWarper(),
       LinearScalingWarper(),
-      LogDampenWaper(),
+      SigmoidDampenWarper(),
   ])

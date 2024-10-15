@@ -93,11 +93,12 @@ class ModelConfig:
 class TrainingConfig:
   """Training configuration."""
 
-  learning_rate: float = 5e-4  # Optimal for a batch size of 128
+  base_lr: float = 5e-7
   warmup_steps: int = 10000
   max_steps: int = 100000
   weight_decay: float = 1e-5
   gradient_clip: float = 0.5
+  grad_accum_steps: int = 4
 
   min_n_context: int = 10
   max_n_context: int = 100
@@ -109,10 +110,15 @@ class TrainingConfig:
   workdir = '../checkpoints'
 
   def create_optimizer(self) -> optax.GradientTransformation:
+    """Creates optimizer with learning rate scheduling."""
     learning_rate_fn = self._create_cosine_lr_fn()
     optimizer = optax.adamw(
         learning_rate_fn, b2=0.95, weight_decay=self.weight_decay
     )
+
+    multi_steps = optax.MultiSteps(optimizer, self.grad_accum_steps)
+    optimizer = multi_steps.gradient_transformation()
+
     optimizer = optax.chain(
         optax.clip_by_global_norm(self.gradient_clip), optimizer
     )
@@ -122,12 +128,12 @@ class TrainingConfig:
     """Creates learning rate schedule."""
     warmup_fn = optax.linear_schedule(
         init_value=0.0,
-        end_value=self.learning_rate,
+        end_value=self.base_lr,
         transition_steps=self.warmup_steps,
     )
     cosine_steps = max(self.max_steps - self.warmup_steps, 1)
     cosine_fn = optax.cosine_decay_schedule(
-        init_value=self.learning_rate, decay_steps=cosine_steps
+        init_value=self.base_lr, decay_steps=cosine_steps
     )
     schedule_fn = optax.join_schedules(
         schedules=[warmup_fn, cosine_fn], boundaries=[self.warmup_steps]
