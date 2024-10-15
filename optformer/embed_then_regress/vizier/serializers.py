@@ -27,7 +27,7 @@ class XSerializer(SuggestionSerializer):
 
   def to_str(self, t: vz.TrialSuggestion, /) -> str:
     param_dict = dict()
-    for key, value in t.parameters.as_dict().items():
+    for key, value in sorted(t.parameters.as_dict().items()):
       if isinstance(value, (float, int)):
         param_dict[key] = format(value, '.2e')  # Scientific notation.
       else:
