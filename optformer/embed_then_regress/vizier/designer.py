@@ -60,9 +60,6 @@ class TransformerICLOptDesigner(vza.Designer):
   _acq_fn: acq_lib.AcquisitionFunction = attrs.field(
       default=acq_lib.UCB(), kw_only=True
   )
-  x_serializer: serializers.SuggestionSerializer = attrs.field(
-      factory=serializers.XSerializer, kw_only=True
-  )
 
   _rng: jax.Array = attrs.field(
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
@@ -77,6 +74,7 @@ class TransformerICLOptDesigner(vza.Designer):
   _history: list[vz.Trial] = attrs.field(factory=list, init=False)
 
   def __attrs_post_init__(self):
+    self._x_serializer = serializers.XSerializer(self.problem.search_space)
     self._converter = converters.TrialToModelInputConverter.from_problem(
         self.problem,
         scale=True,
@@ -123,7 +121,7 @@ class TransformerICLOptDesigner(vza.Designer):
       x_trials = [
           vz.Trial(params) for params in self._converter.to_parameters(xs)
       ]
-      x_strs = [self.x_serializer.to_str(x_trial) for x_trial in x_trials]
+      x_strs = [self._x_serializer.to_str(x_trial) for x_trial in x_trials]
 
       if not self._history:  # If no history, use random scores.
         return jax.random.uniform(self._rng, shape=(len(x_strs),))
@@ -150,7 +148,7 @@ class TransformerICLOptDesigner(vza.Designer):
     m_name = self.problem.metric_information.item().name
     xs, ys = [], []
     for trial in completed.trials:
-      xs.append(self.x_serializer.to_str(trial))
+      xs.append(self._x_serializer.to_str(trial))
       y = trial.final_measurement_or_die.metrics[m_name].value
       ys.append(y)
 

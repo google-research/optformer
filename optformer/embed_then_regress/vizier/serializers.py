@@ -14,6 +14,7 @@
 
 """Serializers for Vizier data."""
 
+import attrs
 from optformer.common import serialization as s_lib
 from optformer.vizier import serialization as vs_lib
 from vizier import pyvizier as vz
@@ -22,16 +23,29 @@ SuggestionSerializer = s_lib.Serializer[vz.TrialSuggestion]
 ProblemSerializer = s_lib.Serializer[vz.ProblemAndTrials]
 
 
+@attrs.define
 class XSerializer(SuggestionSerializer):
   """Basic serializer for Vizier parameters and metadata."""
 
+  # Needed for parameter ordering synchronization.
+  search_space: vz.SearchSpace = attrs.field()
+
+  primitive_serializer: s_lib.PrimitiveSerializer = attrs.field(
+      factory=s_lib.PrimitiveSerializer, kw_only=True
+  )
+
   def to_str(self, t: vz.TrialSuggestion, /) -> str:
-    param_dict = dict()
-    for key, value in sorted(t.parameters.as_dict().items()):
+    param_dict = t.parameters.as_dict()
+
+    new_param_dict = dict()
+    for pc in self.search_space.parameters:
+      value = param_dict[pc.name]
       if isinstance(value, (float, int)):
-        param_dict[key] = format(value, '.2e')  # Scientific notation.
+        new_param_dict[pc.name] = format(value, '.2e')  # Scientific notation.
       else:
-        param_dict[key] = value
+        new_param_dict[pc.name] = value
 
     metadata_str = vs_lib.MetadataSerializer().to_str(t.metadata)
-    return str({'params': param_dict, 'metadata': metadata_str})
+    return self.primitive_serializer.to_str(
+        {'params': new_param_dict, 'metadata': metadata_str}
+    )
