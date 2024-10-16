@@ -100,12 +100,9 @@ class TrainingConfig:
   gradient_clip: float = 0.5
   grad_accum_steps: int = 1
 
-  min_n_context: int = 10
-  max_n_context: int = 100
-
   seed: int = 42
 
-  validation_interval: int = 1000
+  validation_interval: int = 100
   checkpoint_interval: int = 100
   workdir = '../checkpoints'
 
