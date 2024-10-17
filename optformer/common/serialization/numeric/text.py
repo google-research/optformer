@@ -24,6 +24,22 @@ class FloatTextSerializer(base.Serializer[float], base.Deserializer[float]):
 
 
 @attrs.define
+class SimpleScientificFloatTextSerializer(FloatTextSerializer):
+  """Represent floats in a simple scientific notation.
+
+  Mantissa is always same length. Exponent is 2 digits unless needed to be 3.
+  """
+
+  precision: int = attrs.field(default=2, kw_only=True)
+
+  def to_str(self, obj: float, /) -> str:
+    return format(obj, f'.{self.precision}e')
+
+  def from_str(self, s: str, /) -> float:
+    return float(s)
+
+
+@attrs.define
 class ScientificFloatTextSerializer(FloatTextSerializer):
   """Represent floats in raw scientific notation.
 
