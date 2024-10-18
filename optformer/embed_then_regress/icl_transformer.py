@@ -128,14 +128,12 @@ class ICLTransformer(nn.Module):
       x: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
       y: jt.Float[jax.Array, 'B L'],
       metadata: jt.Int[jax.Array, 'B T'],  # Study-level tokenized metadata.
-      mask: jt.Bool[jax.Array, 'B L L'],
+      mask: jt.Bool[jax.Array, 'B L'],
       deterministic: bool | None = None,
       rng: jax.Array | None = None,
   ) -> tuple[jt.Float[jax.Array, 'B L'], jt.Float[jax.Array, 'B L']]:
     # pylint: disable=invalid-name
-    # For non-batched mask of shape [L, L]:
-    # All tokens attend to context tokens: mask[:, :num_ctx] = True
-    # and no token attends to target tokens: mask[:, num_ctx:] = False
+
     B, L, T = x.shape
     x = jnp.reshape(x, (B * L, T))
     x = self.embed(x)  # [B*L, E]
@@ -149,14 +147,16 @@ class ICLTransformer(nn.Module):
     xt_emb = self.x_proj(x)  # [B, L, D]
 
     # Force 0.0 values for target points using the mask.
-    mask_row = mask[:, 0, :]  # [B, L]
-    y = y * mask_row  # [B, L], element-wise multiplication
+    y = y * mask  # [B, L], element-wise multiplication
 
     y = jnp.expand_dims(y, axis=-1)  # [B, L, 1]
     yt_emb = self.y_proj(y)  # [B, L, D]
     xy_emb = self.xy_proj(jnp.concatenate((xt_emb, yt_emb), axis=-1))
 
-    # Broadcast mask to all heads.
+    # Broadcast mask to all heads and additional axis.
+    # All tokens attend to context tokens: mask[:, :num_ctx] = True
+    # and no token attends to target tokens: mask[:, num_ctx:] = False
+    mask = jnp.repeat(jnp.expand_dims(mask, axis=1), L, axis=1)  # [B, L, L]
     mask = jnp.expand_dims(mask, axis=1)  # [B, 1, L, L]
 
     out = xy_emb

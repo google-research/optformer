@@ -109,9 +109,9 @@ def loss_fn(
   mean, std = model.apply(params, deterministic=not training, rng=rng, **batch)
   nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std + EPS)  # [B, L]
 
-  # Only compute loss over target ys. Mask is Bx1xNxN where mask[i, j] = True
-  # if j is a context token and False otherwise.
-  target_mask = 1 - batch['mask'][:, 0, :]  # [B, L]
+  # Only compute loss over target ys. Mask is BxL where True denotes context
+  # token and False otherwise.
+  target_mask = 1 - batch['mask']  # [B, L]
   target_nlogprob = nlogprob * target_mask  # [B, L]
 
   avg_nlogprob = jnp.sum(target_nlogprob, axis=1) / jnp.sum(target_mask, axis=1)
