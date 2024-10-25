@@ -23,6 +23,7 @@ import jax
 import numpy as np
 from optformer.embed_then_regress import regressor as regressor_lib
 from optformer.embed_then_regress.vizier import serializers
+from optformer.vizier.serialization import problem as ps
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
@@ -34,11 +35,9 @@ from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
 
 default_optimizer_factory = vb.VectorizedOptimizerFactory(
-    strategy_factory=es.VectorizedEagleStrategyFactory(
-        eagle_config=es.EagleStrategyConfig()
-    ),
+    strategy_factory=es.VectorizedEagleStrategyFactory(),
     max_evaluations=1000,
-    suggestion_batch_size=25,
+    use_fori=False,
 )
 
 default_scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
@@ -87,7 +86,9 @@ class TransformerICLOptDesigner(vza.Designer):
         seed=int(jax.random.randint(self._rng, [], 0, 2**16)),
     )
     self.regressor.reset()
-    self.regressor.set_metadata('')  # TODO: Use problem metadata.
+    self.regressor.set_metadata(
+        ps.SearchSpaceSerializer().to_str(self.problem.search_space)
+    )
 
   def _generate_seed_trials(self, count: int) -> Sequence[vz.TrialSuggestion]:
     """First trial is search space center, the rest are quasi-random."""
@@ -114,6 +115,9 @@ class TransformerICLOptDesigner(vza.Designer):
 
   def suggest(self, count: int | None = None) -> Sequence[vz.TrialSuggestion]:
 
+    if len(self._history) < self._num_seed_trials:
+      return self._generate_seed_trials(count)
+
     def score_fn(
         xs: types.ModelInput, seed: jax.Array | None = None
     ) -> types.Array:
@@ -128,9 +132,6 @@ class TransformerICLOptDesigner(vza.Designer):
       else:
         dist = self.regressor.predict(x_strs)
         return self._acq_fn(dist)
-
-    if len(self._history) < self._num_seed_trials:
-      return self._generate_seed_trials(count)
 
     prior_features = vb.trials_to_sorted_array(self._history, self._converter)
     best_candidates: vb.VectorizedStrategyResults = self._optimizer(

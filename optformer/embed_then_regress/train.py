@@ -16,9 +16,7 @@
 
 import functools
 from typing import Any, Mapping
-from absl import logging
 from clu import metric_writers
-from etils import epath
 import flax
 import flax.typing as flax_typing
 import jax
@@ -26,9 +24,9 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from optformer.common.data import datasets as ds_lib
+from optformer.embed_then_regress import checkpointing as ckpt_lib
 from optformer.embed_then_regress import configs
 from optformer.embed_then_regress import icl_transformer
-from orbax import checkpoint as orbax_checkpoint
 import tensorflow as tf
 
 
@@ -80,20 +78,13 @@ def create_train_state(
     optimizer: optax.GradientTransformation,
     example_batch: Mapping[str, np.ndarray],
     seed: int = 0,
-    weights_override: dict[str, jax.Array] | None = None,
 ) -> TrainState:
   """Creates initial train state with possibility to override weights."""
   rng = jax.random.PRNGKey(seed)
   example_batch = compress_batch(example_batch)
-  with jax.default_device(jax.devices('cpu')[0]):
-    params = model.init(rng, deterministic=False, **example_batch)
+  params = model.init(rng, deterministic=False, **example_batch)
 
-    if weights_override:
-      params = params.unfreeze()
-      params.update(weights_override)
-      params = params.freeze(params)
-
-    opt_state = optimizer.init(params)
+  opt_state = optimizer.init(params)
   return TrainState(jnp.array(0), params, opt_state, rng)
 
 
@@ -159,22 +150,6 @@ def eval_step(
   return {f'eval_{k}': v for k, v in metrics.items()}
 
 
-def get_checkpoint_manager(
-    workdir: epath.PathLike,
-) -> orbax_checkpoint.CheckpointManager:
-  """Sets up Orbax checkpointing."""
-  # The keys in this dict should match the keys in `checkpointed_state`.
-  checkpointers = dict(
-      train_state=orbax_checkpoint.PyTreeCheckpointer(),
-  )
-  checkpoint_dir = epath.Path(workdir) / 'checkpoints'
-  return orbax_checkpoint.CheckpointManager(
-      checkpoint_dir,
-      checkpointers=checkpointers,
-      options=orbax_checkpoint.CheckpointManagerOptions(create=True),
-  )
-
-
 def train(
     model_config: configs.ModelConfig,
     embedder_config: configs.T5EmbedderConfig,
@@ -206,24 +181,16 @@ def train(
   valid_ds = data_config.wrap_ds(valid_ds, multi_gpu())
   valid_it = valid_ds.as_numpy_iterator()
 
-  train_state = create_train_state(
-      model,
-      optimizer,
-      next(train_it),
-      train_config.seed,
+  init_train_state = create_train_state(
+      model, optimizer, next(train_it), train_config.seed
   )
 
   # Set up checkpointing
-  checkpoint_manager = get_checkpoint_manager(train_config.workdir)
+  checkpoint_manager = ckpt_lib.get_checkpoint_manager(train_config.workdir)
   # Restore if available.
-  latest_step = checkpoint_manager.latest_step()
-  if latest_step is not None:
-    restored_state = checkpoint_manager.restore(
-        latest_step,
-        items=dict(train_state=train_state),  # initial train_state template
-    )
-    train_state = restored_state['train_state']
-    logging.info('Restored checkpoint from step %d', latest_step)
+  train_state = ckpt_lib.restore_train_state(
+      train_config.workdir, dict(train_state=init_train_state)
+  )
 
   train_state = replicate(train_state)  # For pmap
   step = int(unreplicate(train_state.step))

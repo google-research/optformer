@@ -14,18 +14,19 @@
 
 """String-level wrapper around Jax regressor."""
 
-from typing import Sequence
+from typing import Any, Callable, Sequence
 import attrs
 import flax.typing as flax_typing
 import jax
 import jaxtyping as jt
 import numpy as np
+from optformer.embed_then_regress import checkpointing as ckpt_lib
+from optformer.embed_then_regress import configs
 from optformer.embed_then_regress import icl_transformer
 from optformer.embed_then_regress import normalization
 import seqio
 import tensorflow as tf
 from tensorflow_probability.substrates import jax as tfp
-
 
 tfd = tfp.distributions
 
@@ -39,8 +40,8 @@ class StatefulICLRegressor:
   params: flax_typing.FrozenVariableDict = attrs.field()
   vocab: seqio.Vocabulary = attrs.field()
 
-  max_trial_length: int = attrs.field(default=100, kw_only=True)  # L
-  max_token_length: int = attrs.field(default=1024, kw_only=True)  # T
+  max_trial_length: int = attrs.field(default=300, kw_only=True)  # L
+  max_token_length: int = attrs.field(default=256, kw_only=True)  # T
 
   warper: normalization.StatefulWarper = attrs.field(
       factory=normalization.default_warper, kw_only=True
@@ -50,6 +51,8 @@ class StatefulICLRegressor:
   _all_xt: jt.Int[np.ndarray, 'L T'] = attrs.field(init=False)
   _all_yt: jt.Float[np.ndarray, 'L'] = attrs.field(init=False)
   _mt: jt.Int[np.ndarray, 'T'] = attrs.field(init=False)
+  _num_prev: int = attrs.field(init=False)
+  _jit_apply: Callable[..., Any] = attrs.field(init=False)
 
   def __attrs_post_init__(self):
     self.reset()
@@ -63,25 +66,22 @@ class StatefulICLRegressor:
 
     temp_xt = np.copy(self._all_xt)
     temp_xt[self._num_prev : self._num_prev + num_query] = self._tokenize(xs)
-    temp_xt = np.expand_dims(temp_xt, axis=0)  # [B=1, L, T]
 
     temp_yt = np.copy(self._all_yt)
     temp_yt = self.warper.warp(temp_yt)
-    temp_yt = np.expand_dims(temp_yt, axis=0)  # [B=1, L]
 
     temp_mt = np.copy(self._mt)
-    temp_mt = np.expand_dims(temp_mt, axis=(0))  # [B=1, T]
 
     mask = np.ones(self.max_trial_length, dtype=bool)
     mask[self._num_prev :] = False
-    mask = np.expand_dims(mask, axis=0)  # [B=1, L]
 
+    # Need to add batch dimension to all inputs.
     mean, std = self._jit_apply(
         self.params,
-        temp_xt,
-        temp_yt,
-        temp_mt,
-        mask=mask,
+        x=np.expand_dims(temp_xt, axis=0),  # [B=1, L, T],
+        y=np.expand_dims(temp_yt, axis=0),  # [B=1, L],
+        metadata=np.expand_dims(temp_mt, axis=0),  # [B=1, T],
+        mask=np.expand_dims(mask, axis=0),  # [B=1, L],
         deterministic=True,
     )
 
@@ -128,3 +128,20 @@ class StatefulICLRegressor:
     ds = ds.batch(batch_size)
     tokens = next(ds.as_numpy_iterator())['input']
     return tokens.astype(np.int32)
+
+  @classmethod
+  def from_checkpoint_and_configs(
+      cls,
+      ckpt_path: str,
+      model_config: configs.ModelConfig,
+      embedder_config: configs.T5EmbedderConfig,
+      data_config: configs.DataConfig,
+  ) -> 'StatefulICLRegressor':
+    """Creates a regressor from configs."""
+
+    return StatefulICLRegressor(
+        model_config.create_model(embedder_config=embedder_config),
+        params=ckpt_lib.restore_train_state(ckpt_path)['params'],
+        vocab=data_config.create_vocab(),
+        max_token_length=data_config.max_token_length,
+    )
