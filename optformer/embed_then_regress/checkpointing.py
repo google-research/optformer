@@ -38,21 +38,20 @@ def get_checkpoint_manager(
 
 def restore_train_state(
     workdir: epath.PathLike,
-    initial_train_state: dict[str, Any] | None = None,
+    initial_train_state: Any | None = None,
     *,
     step: int | None = None,
 ) -> dict[str, Any]:
   """Loads params from checkpoint workdir."""
-  initial_train_state = initial_train_state or {'train_state': None}
-
   checkpoint_manager = get_checkpoint_manager(workdir)
   step = step if step is not None else checkpoint_manager.latest_step()
-  if step is None:
-    logging.info('No last step found. Orbax has not run yet.')
+  if step is None and initial_train_state is None:
+    raise ValueError('No last step found but no initial state provided either.')
+  if step is None and initial_train_state is not None:
     return initial_train_state
 
-  checkpointed_state = checkpoint_manager.restore(
-      step, items=initial_train_state
+  restored = checkpoint_manager.restore(
+      step, items={'train_state': initial_train_state}
   )
   logging.info('Restored checkpoint from step %d', step)
-  return checkpointed_state['train_state']
+  return restored['train_state']

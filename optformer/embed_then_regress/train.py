@@ -189,7 +189,7 @@ def train(
   checkpoint_manager = ckpt_lib.get_checkpoint_manager(train_config.workdir)
   # Restore if available.
   train_state = ckpt_lib.restore_train_state(
-      train_config.workdir, dict(train_state=init_train_state)
+      train_config.workdir, init_train_state
   )
 
   train_state = replicate(train_state)  # For pmap
