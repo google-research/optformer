@@ -64,6 +64,26 @@ class MeanStd(StatefulWarper):
     return ys * self._std + self._mean
 
 
+def _estimate_good_std(
+    unique_ys: jt.Float[np.ndarray, 'U'], threshold: float
+) -> float:
+  """Estimates deviation of good portion of array."""
+
+  # Use only the good half.
+  good_half = unique_ys[unique_ys >= threshold]
+  std = np.sqrt(np.average((good_half - threshold) ** 2))
+  if std > 0:
+    return std
+
+  # If std was zero, use full set.
+  std = np.sqrt(np.average((unique_ys - threshold) ** 2))
+  if np.isfinite(std):
+    return std
+
+  # If NaN, use mean absolute error.
+  return np.average(np.abs(unique_ys - threshold))
+
+
 class HalfRankWarper(StatefulWarper):
   """Stateful version of Vizier's half-rank warper."""
 
@@ -77,8 +97,8 @@ class HalfRankWarper(StatefulWarper):
   def train(self, ys: jt.Float[np.ndarray, 'H']) -> None:
     self._median = np.median(ys)
 
-    good_half = ys[ys >= self._median]
-    self._good_std = np.sqrt(np.average((good_half - self._median) ** 2))
+    unique_ys = np.unique(ys)
+    self._good_std = _estimate_good_std(unique_ys, self._median)
 
     self._original_data = ys
     self._ranks = stats.rankdata(ys)  # All ranks within [1, H]
@@ -114,11 +134,12 @@ class HalfRankWarper(StatefulWarper):
 
 
 class LinearScalingWarper(StatefulWarper):
-  """Linearly scales y-values to [-1,1] based on min/max."""
+  """Linearly scales y-values to [-scale,scale] based on min/max."""
 
-  def __init__(self):
+  def __init__(self, scale: float = 0.5):
     self._y_min = None
     self._y_max = None
+    self._scale = scale
 
   def train(self, ys: jt.Float[np.ndarray, 'H']) -> None:
     self._y_min = np.min(ys)
@@ -126,10 +147,11 @@ class LinearScalingWarper(StatefulWarper):
 
   def warp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
     norm_diff = (ys - self._y_min) / (self._y_max - self._y_min + _EPS) - 0.5
-    return 2.0 * norm_diff
+    return 2.0 * self._scale * norm_diff
 
   def unwarp(self, ys: jt.Float[np.ndarray, 'L']) -> jt.Float[np.ndarray, 'L']:
-    return (0.5 * ys + 0.5) * (self._y_max - self._y_min) + self._y_min
+    ys = 0.5 * ys / self._scale
+    return (ys + 0.5) * (self._y_max - self._y_min) + self._y_min
 
 
 class LogDampenWaper(StatefulWarper):
@@ -151,7 +173,7 @@ class LogDampenWaper(StatefulWarper):
 class SigmoidDampenWarper(StatefulWarper):
   """Sigmoid dampening function to map R -> [-scale, scale]."""
 
-  def __init__(self, curvature: float = 0.1, scale: float = 2.0):
+  def __init__(self, curvature: float = 1.0, scale: float = 1.0):
     self._curvature = curvature
     self._scale = scale
 
