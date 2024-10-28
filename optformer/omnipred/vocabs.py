@@ -15,9 +15,12 @@
 """Omnipred-specific vocabulary."""
 
 import functools
-from typing import Optional
 from optformer.common.data import vocabs
 from optformer.common.serialization import numeric
+
+DEFAULT_VOCAB_PATH = 'gs://t5-data/vocabs/cc_all.32000.100extra/sentencepiece.model'  # pylint: disable=line-too-long
+
+DigitByDigitFloatTokenSerializer = numeric.DigitByDigitFloatTokenSerializer
 
 
 class FloatMetricVocabulary(vocabs.HybridVocabulary[float]):
@@ -26,20 +29,18 @@ class FloatMetricVocabulary(vocabs.HybridVocabulary[float]):
   def __init__(
       self,
       sentencepiece_model_file: str,
-      deserializer: Optional[numeric.DigitByDigitFloatTokenSerializer] = None,
+      deserializer: DigitByDigitFloatTokenSerializer | None = None,
   ):
 
-    if deserializer is None:
-      deserializer = numeric.DigitByDigitFloatTokenSerializer()
+    self._deserializer = deserializer or DigitByDigitFloatTokenSerializer()
 
     super().__init__(
         sentencepiece_model_file,
-        extra_tokens=list(deserializer.all_tokens_used()),
+        extra_tokens=list(self._deserializer.all_tokens_used()),
     )
-    self._deserializer = deserializer
 
   @property
-  def deserializer(self) -> numeric.DigitByDigitFloatTokenSerializer:
+  def deserializer(self) -> DigitByDigitFloatTokenSerializer:
     """To deal with pytypes."""
     return self._deserializer
 
