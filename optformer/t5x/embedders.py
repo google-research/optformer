@@ -31,6 +31,7 @@ import tensorflow as tf
 
 Tokens = jt.Int[jax.Array, 'B T']
 SentencePieceVocabulary = seqio.SentencePieceVocabulary
+Initializer = nn.initializers.Initializer
 
 
 class PoolingReduction(nn.Module):
@@ -49,15 +50,17 @@ class AttentionReduction(nn.Module):
   """Attention-based reduction."""
 
   hidden_dim: int = 128
+  kernel_init: Initializer = nn.initializers.truncated_normal(stddev=0.02)
 
   @nn.compact
   def __call__(
       self, logits: jt.Float[jax.Array, 'B T D']
   ) -> jt.Float[jax.Array, 'B D']:
-    # Project logits to a lower dimension
-    projected_logits = nn.Dense(self.hidden_dim)(logits)  # [B, T, H]
-    # Calculate attention weights
-    attention_logits = nn.Dense(1)(projected_logits)  # [B, T, 1]
+    dense = functools.partial(nn.Dense, kernel_init=self.kernel_init)
+    # Project logits to a lower dimension.
+    projected_logits = dense(self.hidden_dim)(logits)  # [B, T, H]
+    # Calculate attention weights.
+    attention_logits = dense(1)(projected_logits)  # [B, T, 1]
     attention_weights = jax.nn.softmax(attention_logits, axis=1)  # [B, T, 1]
     # Weighted average of logits
     return jnp.sum(logits * attention_weights, axis=1)  # [B, D]

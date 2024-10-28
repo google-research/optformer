@@ -24,11 +24,12 @@ import numpy as np
 
 Array = jnp.ndarray | np.ndarray
 
-# Lower initialization is necessary to start off with reasonably scaled output
-# distribution and prevent exploding gradients / bad initial loss values.
-Dense = functools.partial(
-    nn.Dense, kernel_init=nn.initializers.truncated_normal()
-)
+# NOTE: Lower initialization is **extremely** important. We need to start off
+# with reasonably scaled output distribution and prevent exploding gradients /
+# bad initial loss values. Also needs to be consistent across entire model in
+# order to use the same learning rate.
+default_kernel_init = nn.initializers.truncated_normal(stddev=0.02)
+Dense = functools.partial(nn.Dense, kernel_init=default_kernel_init)
 
 
 class Block(nn.Module):
@@ -45,6 +46,8 @@ class Block(nn.Module):
         num_heads=self.num_heads,
         qkv_features=self.d_model,
         dropout_rate=self.dropout_rate,
+        kernel_init=default_kernel_init,
+        out_kernel_init=default_kernel_init,
     )
 
     self.pre_ffw_norm = nn.LayerNorm()
