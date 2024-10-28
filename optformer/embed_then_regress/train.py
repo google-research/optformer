@@ -150,6 +150,15 @@ def eval_step(
   return {f'eval_{k}': v for k, v in metrics.items()}
 
 
+def aggregate_metrics(
+    metrics: list[Mapping[str, jnp.ndarray]] | Mapping[str, jnp.ndarray],
+) -> Mapping[str, Scalar]:
+  """Aggregates metrics (possibly from multiple gradient accumulation steps)."""
+  if isinstance(metrics, list):
+    metrics = jax.tree.map(lambda *args: jnp.stack(args), *metrics)
+  return jax.tree.map(jnp.mean, metrics)
+
+
 def train(
     model_config: configs.ModelConfig,
     embedder_config: configs.T5EmbedderConfig,
@@ -193,18 +202,28 @@ def train(
   )
 
   train_state = replicate(train_state)  # For pmap
-  step = int(unreplicate(train_state.step))
-  while step < train_config.max_steps:
-    train_state, train_metrics = p_train_step(train_state, next(train_it))
-    writer.write_scalars(step, jax.tree.map(jnp.mean, train_metrics))
+  # Account for gradient accumulation by using step // grad_accum_steps.
+  grad_accum_steps = train_config.grad_accum_steps
+  eff_step = int(unreplicate(train_state.step)) // grad_accum_steps
 
-    if step % train_config.validation_interval == 0:
-      valid_metrics = p_eval_step(train_state, next(valid_it))
-      writer.write_scalars(step, jax.tree.map(jnp.mean, valid_metrics))
+  while eff_step < train_config.max_steps:
+    all_train_metrics = []
+    for _ in range(grad_accum_steps):
+      train_state, train_metrics = p_train_step(train_state, next(train_it))
+      all_train_metrics.append(train_metrics)
+    writer.write_scalars(eff_step, aggregate_metrics(all_train_metrics))
 
-    if step % train_config.checkpoint_interval == 0:
+    if eff_step % train_config.validation_interval == 0:
+      all_valid_metrics = [
+          p_eval_step(train_state, next(valid_it))
+          for _ in range(grad_accum_steps)
+      ]
+      writer.write_scalars(eff_step, aggregate_metrics(all_valid_metrics))
+
+    if eff_step % train_config.checkpoint_interval == 0:
       ckpt_train_state = unreplicate(train_state)
       checkpoint_manager.save(
-          step, items=dict(train_state=jax.tree.map(np.array, ckpt_train_state))
+          eff_step,
+          items=dict(train_state=jax.tree.map(np.array, ckpt_train_state)),
       )
-    step = int(unreplicate(train_state.step))
+    eff_step = int(unreplicate(train_state.step)) // grad_accum_steps

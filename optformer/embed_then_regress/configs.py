@@ -135,7 +135,12 @@ class TrainingConfig:
     schedule_fn = optax.join_schedules(
         schedules=[warmup_fn, cosine_fn], boundaries=[self.warmup_steps]
     )
-    return schedule_fn
+
+    # Account for gradient accumulation by using count // grad_accum_steps.
+    gradient_accum_schedule_fn = lambda count: schedule_fn(
+        count // self.grad_accum_steps
+    )
+    return gradient_accum_schedule_fn
 
 
 @dataclasses.dataclass
