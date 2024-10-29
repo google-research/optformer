@@ -31,7 +31,6 @@ import tensorflow as tf
 
 
 Scalar = jnp.ndarray | np.ndarray | float
-EPS = 1e-7
 
 
 def multi_gpu() -> bool:
@@ -98,7 +97,7 @@ def loss_fn(
   """Loss function with metrics."""
   # pylint: disable=invalid-name
   mean, std = model.apply(params, deterministic=not training, rng=rng, **batch)
-  nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std + EPS)  # [B, L]
+  nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std)  # [B, L]
 
   # Only compute loss over target ys. Mask is BxL where True denotes context
   # token and False otherwise.

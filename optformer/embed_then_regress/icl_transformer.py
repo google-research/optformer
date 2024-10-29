@@ -30,6 +30,8 @@ Array = jnp.ndarray | np.ndarray
 # order to use the same learning rate.
 default_kernel_init = nn.initializers.truncated_normal(stddev=0.02)
 Dense = functools.partial(nn.Dense, kernel_init=default_kernel_init)
+EPS = 1e-7
+AnyTensor = jt.Float[jax.Array, '*A']
 
 
 class Block(nn.Module):
@@ -92,7 +94,7 @@ class ICLTransformer(nn.Module):
   nhead: int  # H
   dropout: float
   num_layers: int
-
+  std_transform_fn: Callable[[AnyTensor], AnyTensor]
   embedder_factory: Callable[[], nn.Module]  # __call__: [B, T] -> [B, D]
 
   def setup(self):
@@ -166,8 +168,8 @@ class ICLTransformer(nn.Module):
     for layer in self.encoder_layers:
       out = layer(out, mask, deterministic, rng)
 
-    mean, log_std = jnp.split(self.mean_logstd_head(out), 2, axis=-1)  # [B L 1]
-    std = jnp.exp(log_std)
+    mean, std = jnp.split(self.mean_logstd_head(out), 2, axis=-1)  # [B L 1]
+    std = self.std_transform_fn(self.std_transform)(std) + EPS
 
     mean = jnp.squeeze(mean, axis=-1)
     std = jnp.squeeze(std, axis=-1)

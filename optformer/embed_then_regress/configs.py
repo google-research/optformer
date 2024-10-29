@@ -20,6 +20,7 @@ import functools
 from typing import Callable
 from flax import linen as nn
 import jax
+import jaxtyping as jt
 import optax
 from optformer.embed_then_regress import icl_transformer
 from optformer.t5x import embedders
@@ -76,6 +77,7 @@ class ModelConfig:
   nhead: int = 16
   dropout: float = 0.1
   num_layers: int = 8
+  std_transform: str = 'exp'
 
   def create_model(
       self, embedder_config: T5EmbedderConfig
@@ -83,10 +85,36 @@ class ModelConfig:
 
     kwargs = dataclasses.asdict(self)
     embedder_factory = embedder_config.create_embedder_factory()
+    std_transform_fn = self.create_std_transform_fn()
 
     return icl_transformer.ICLTransformer(
-        embedder_factory=embedder_factory, **kwargs
+        std_transform_fn=std_transform_fn,
+        embedder_factory=embedder_factory,
+        **kwargs,
     )
+
+  def create_std_transform_fn(
+      self,
+  ) -> Callable[[jt.Float[jax.Array, '*A']], jt.Float[jax.Array, '*A']]:
+    """Creates std transform function."""
+    if self.std_transform == 'exp':
+      return jax.numpy.exp
+    elif self.std_transform == 'exp10':
+      return lambda x: jax.numpy.exp(10.0 * x)
+    elif self.std_transform == 'softplus':
+      return jax.nn.softplus
+    elif self.std_transform == 'softplus10':
+      return lambda x: jax.nn.softplus(10.0 * x)
+    elif self.std_transform == 'abs':
+      return jax.numpy.abs
+    elif self.std_transform == 'abs10':
+      return lambda x: jax.numpy.abs(10.0 * x)
+    elif self.std_transform == 'shifted_relu':
+      return lambda x: jax.nn.relu(x + 1.0)
+    elif self.std_transform == 'shifted_relu10':
+      return lambda x: jax.nn.relu(10.0 * x + 1.0)
+    else:
+      raise ValueError(f'Unknown std_transform: {self.std_transform}')
 
 
 @dataclasses.dataclass
