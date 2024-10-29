@@ -483,17 +483,20 @@ class HashProblemMetadata(VizierAugmenter):
     return self.augment(study)
 
 
+@attrs.define(kw_only=True)
 class StandardizeSearchSpace(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
   """Standardizes the search space and corresponding trials.
 
   DOUBLE, INTEGER, and DISCRETE parameters are scaled to [0,1] range, and
   corresponding ParameterConfigs are all DOUBLE.
 
-  CATEGORICAL parameters use standard ["0", "1", "2", ...] feasible values.
+  CATEGORICAL params use ["0", "1", "2", ...] or ["a", "b", "c", ...].
 
   This is useful mainly for serializations for string-based regressors, where we
   don't care about reversibility back into original space.
   """
+
+  alpha_categorical: bool = attrs.field(default=False)
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     # Create a forward converter to map to normalized feature space.
@@ -508,10 +511,11 @@ class StandardizeSearchSpace(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
     new_search_space = vz.SearchSpace()
     for i, pc in enumerate(old_search_space.parameters):
       if pc.type == vz.ParameterType.CATEGORICAL:
-        new_pc = vz.ParameterConfig.factory(
-            f'x{i}',
-            feasible_values=[str(j) for j in range(len(pc.feasible_values))],
-        )
+        if self.alpha_categorical:
+          feasibles = [chr(j + 97) for j in range(len(pc.feasible_values))]
+        else:
+          feasibles = [str(j) for j in range(len(pc.feasible_values))]
+        new_pc = vz.ParameterConfig.factory(f'x{i}', feasible_values=feasibles)
       else:
         new_pc = vz.ParameterConfig.factory(f'x{i}', bounds=(0.0, 1.0))
       new_search_space.add(new_pc)
