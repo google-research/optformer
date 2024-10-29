@@ -207,11 +207,12 @@ def train(
   eff_step = int(unreplicate(train_state.step)) // grad_accum_steps
 
   while eff_step < train_config.max_steps:
-    all_train_metrics = []
-    for _ in range(grad_accum_steps):
-      train_state, train_metrics = p_train_step(train_state, next(train_it))
-      all_train_metrics.append(train_metrics)
-    writer.write_scalars(eff_step, aggregate_metrics(all_train_metrics))
+    if eff_step % train_config.checkpoint_interval == 0:
+      ckpt_train_state = unreplicate(train_state)
+      checkpoint_manager.save(
+          eff_step,
+          items=dict(train_state=jax.tree.map(np.array, ckpt_train_state)),
+      )
 
     if eff_step % train_config.validation_interval == 0:
       all_valid_metrics = [
@@ -220,10 +221,10 @@ def train(
       ]
       writer.write_scalars(eff_step, aggregate_metrics(all_valid_metrics))
 
-    if eff_step % train_config.checkpoint_interval == 0:
-      ckpt_train_state = unreplicate(train_state)
-      checkpoint_manager.save(
-          eff_step,
-          items=dict(train_state=jax.tree.map(np.array, ckpt_train_state)),
-      )
+    all_train_metrics = []
+    for _ in range(grad_accum_steps):
+      train_state, train_metrics = p_train_step(train_state, next(train_it))
+      all_train_metrics.append(train_metrics)
+    writer.write_scalars(eff_step, aggregate_metrics(all_train_metrics))
+
     eff_step = int(unreplicate(train_state.step)) // grad_accum_steps
