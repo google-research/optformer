@@ -20,6 +20,7 @@ import functools
 from typing import Callable
 from flax import linen as nn
 import jax
+import jax.numpy as jnp
 import jaxtyping as jt
 import optax
 from optformer.embed_then_regress import icl_transformer
@@ -84,12 +85,11 @@ class ModelConfig:
   ) -> icl_transformer.ICLTransformer:
 
     kwargs = dataclasses.asdict(self)
-    embedder_factory = embedder_config.create_embedder_factory()
-    std_transform_fn = self.create_std_transform_fn()
+    kwargs.pop('std_transform')
 
     return icl_transformer.ICLTransformer(
-        std_transform_fn=std_transform_fn,
-        embedder_factory=embedder_factory,
+        std_transform_fn=self.create_std_transform_fn(),
+        embedder_factory=embedder_config.create_embedder_factory(),
         **kwargs,
     )
 
@@ -98,17 +98,17 @@ class ModelConfig:
   ) -> Callable[[jt.Float[jax.Array, '*A']], jt.Float[jax.Array, '*A']]:
     """Creates std transform function."""
     if self.std_transform == 'exp':
-      return jax.numpy.exp
+      return jnp.exp
     elif self.std_transform == 'exp10':
-      return lambda x: jax.numpy.exp(10.0 * x)
+      return lambda x: jnp.exp(10.0 * x)
     elif self.std_transform == 'softplus':
       return jax.nn.softplus
     elif self.std_transform == 'softplus10':
       return lambda x: jax.nn.softplus(10.0 * x)
     elif self.std_transform == 'abs':
-      return jax.numpy.abs
+      return jnp.abs
     elif self.std_transform == 'abs10':
-      return lambda x: jax.numpy.abs(10.0 * x)
+      return lambda x: jnp.abs(10.0 * x)
     elif self.std_transform == 'shifted_relu':
       return lambda x: jax.nn.relu(x + 1.0)
     elif self.std_transform == 'shifted_relu10':
@@ -131,7 +131,7 @@ class TrainingConfig:
   seed: int = 42
 
   validation_interval: int = 100
-  checkpoint_interval: int = 100
+  max_to_keep_ckpts: int = 5
   workdir = '../checkpoints'
 
   def create_optimizer(self) -> optax.GradientTransformation:
@@ -186,7 +186,6 @@ class DataConfig(abc.ABC):
   ) -> tf.data.Dataset:
     """This should be used at the trainer level."""
     ds = self._tokenize_ds(ds)
-    ds = ds.shard(jax.process_count(), jax.process_index())
     ds = ds.repeat()
     ds = ds.shuffle(buffer_size=self.buffer_size)
 

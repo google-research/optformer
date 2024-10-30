@@ -169,7 +169,7 @@ class ICLTransformer(nn.Module):
       out = layer(out, mask, deterministic, rng)
 
     mean, std = jnp.split(self.mean_logstd_head(out), 2, axis=-1)  # [B L 1]
-    std = self.std_transform_fn(self.std_transform)(std) + EPS
+    std = self.std_transform_fn(std) + EPS
 
     mean = jnp.squeeze(mean, axis=-1)
     std = jnp.squeeze(std, axis=-1)

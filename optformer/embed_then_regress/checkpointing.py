@@ -21,18 +21,16 @@ from orbax import checkpoint as orbax_checkpoint
 
 
 def get_checkpoint_manager(
-    workdir: epath.PathLike,
+    workdir: epath.PathLike, **options_kwargs
 ) -> orbax_checkpoint.CheckpointManager:
   """Sets up Orbax checkpointing."""
-  # The keys in this dict should match the keys in `checkpointed_state`.
-  checkpointers = dict(
-      train_state=orbax_checkpoint.PyTreeCheckpointer(),
-  )
   checkpoint_dir = epath.Path(workdir) / 'checkpoints'
   return orbax_checkpoint.CheckpointManager(
       checkpoint_dir,
-      checkpointers=checkpointers,
-      options=orbax_checkpoint.CheckpointManagerOptions(create=True),
+      checkpointers={'train_state': orbax_checkpoint.PyTreeCheckpointer()},
+      options=orbax_checkpoint.CheckpointManagerOptions(
+          create=True, **options_kwargs
+      ),
   )
 
 

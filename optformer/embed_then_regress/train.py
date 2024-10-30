@@ -155,7 +155,8 @@ def aggregate_metrics(
   """Aggregates metrics (possibly from multiple gradient accumulation steps)."""
   if isinstance(metrics, list):
     metrics = jax.tree.map(lambda *args: jnp.stack(args), *metrics)
-  return jax.tree.map(jnp.mean, metrics)
+  metrics = jax.tree.map(jnp.mean, metrics)
+  return {k: float(v) for k, v in metrics.items()}
 
 
 def train(
@@ -194,7 +195,12 @@ def train(
   )
 
   # Set up checkpointing
-  checkpoint_manager = ckpt_lib.get_checkpoint_manager(train_config.workdir)
+  checkpoint_manager = ckpt_lib.get_checkpoint_manager(
+      train_config.workdir,
+      max_to_keep=train_config.max_to_keep_ckpts,
+      best_fn=lambda metrics: metrics['eval_loss'],
+      best_mode='min',
+  )
   # Restore if available.
   train_state = ckpt_lib.restore_train_state(
       train_config.workdir, init_train_state
@@ -206,19 +212,19 @@ def train(
   eff_step = int(unreplicate(train_state.step)) // grad_accum_steps
 
   while eff_step < train_config.max_steps:
-    if eff_step % train_config.checkpoint_interval == 0:
+    if eff_step % train_config.validation_interval == 0:
+      valid_agg_metrics = aggregate_metrics([
+          p_eval_step(train_state, next(valid_it))
+          for _ in range(grad_accum_steps)
+      ])
+      writer.write_scalars(eff_step, valid_agg_metrics)
+
       ckpt_train_state = unreplicate(train_state)
       checkpoint_manager.save(
           eff_step,
           items=dict(train_state=jax.tree.map(np.array, ckpt_train_state)),
+          metrics=valid_agg_metrics,
       )
-
-    if eff_step % train_config.validation_interval == 0:
-      all_valid_metrics = [
-          p_eval_step(train_state, next(valid_it))
-          for _ in range(grad_accum_steps)
-      ]
-      writer.write_scalars(eff_step, aggregate_metrics(all_valid_metrics))
 
     all_train_metrics = []
     for _ in range(grad_accum_steps):
