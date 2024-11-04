@@ -20,3 +20,4 @@ from optformer.common.serialization.numeric.text import ScientificFloatTextSeria
 from optformer.common.serialization.numeric.text import SimpleFloatTextSerializer
 from optformer.common.serialization.numeric.text import SimpleScientificFloatTextSerializer
 from optformer.common.serialization.numeric.tokens import DigitByDigitFloatTokenSerializer
+from optformer.common.serialization.numeric.tokens import IEEEFloatTokenSerializer

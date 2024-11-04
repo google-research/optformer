@@ -88,9 +88,45 @@ class DigitByDigitFloatTokenSerializerTest(parameterized.TestCase):
     out = serializer.all_tokens_used()
 
     signs = ['<+>', '<->']
-    digits = [f'<{i}>' for i in range(0, 10)]
+    digits = [f'<{i}>' for i in range(10)]
     exponents = ['<E-2>', '<E-1>', '<E0>', '<E1>', '<E2>']
     self.assertEqual(list(out), signs + digits + exponents)
+
+
+class IEEEFloatTokenSerializerTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      (123.4, '<+><+><2><1><2><3><4>', 123.4),
+      (12345, '<+><+><4><1><2><3><4>', 12340),
+      (0.1234, '<+><-><1><1><2><3><4>', 0.1234),
+      (-123.4, '<-><+><2><1><2><3><4>', -123.4),
+      (-12345, '<-><+><4><1><2><3><4>', -12340),
+      (-0.1234, '<-><-><1><1><2><3><4>', -0.1234),
+      (1.234e-9, '<+><-><9><1><2><3><4>', 1.234e-9),
+      (-1.234e-9, '<-><-><9><1><2><3><4>', 1.234e-9),
+      (1.2e-9, '<+><-><9><1><2><0><0>', 1.2e-9),
+      (-1.2e-9, '<-><-><9><1><2><0><0>', -1.2e-9),
+      (1.2e9, '<+><+><9><1><2><0><0>', 1.2e9),
+      (-1.2e9, '<-><+><9><1><2><0><0>', -1.2e9),
+      (1.2345e9, '<+><+><9><1><2><3><4>', 1.234e9),
+      (1.234e-10, '<+><-><0><0><0><0><0>', 0.0),  # Underflow
+      (-1.234e-10, '<-><-><0><0><0><0><0>', 0.0),  # Underflow
+      (0.0, '<+><+><0><0><0><0><0>', 0.0),
+      (-0.0, '<+><+><0><0><0><0><0>', 0.0),  # in python, 0.0 == -0.0
+  )
+  def test_serialize(self, f: float, serialized: str, deserialized: float):
+    serializer = tokens.IEEEFloatTokenSerializer()
+    self.assertEqual(serializer.to_str(f), serialized)
+    self.assertAlmostEqual(serializer.from_str(serialized), deserialized)
+
+  @parameterized.parameters((3,), (10,), (18,))
+  def test_all_tokens_used(self, base: int):
+    serializer = tokens.IEEEFloatTokenSerializer(base=base)
+    out = serializer.all_tokens_used()
+
+    signs = ['<+>', '<->']
+    digits = [f'<{i}>' for i in range(base)]
+    self.assertEqual(list(out), signs + digits)
 
 
 if __name__ == '__main__':
