@@ -61,18 +61,26 @@ class VizierIdempotentAugmenter(VizierAugmenter[_T]):
 
 @attrs.define
 class SearchSpacePermuter(VizierAugmenter[vz.SearchSpace]):
-  """Permutes the search space's parameters."""
+  """Permutes the search space's parameters and feasible values."""
 
   seed: Optional[int] = attrs.field(init=True, kw_only=True, default=None)
 
   def augment(self, search_space: vz.SearchSpace, /) -> vz.SearchSpace:
     """Logic below reduces expensive object-copying as much as possible."""
+    # pylint: disable=protected-access
     rng = random.Random(self.seed)
 
-    # Pop out all parameter configs, shuffle, then put back in.
+    # Pop out all parameter configs and shuffle ordering.
     parameter_names = list(search_space.parameter_names)
     p_configs = [search_space.pop(name) for name in parameter_names]
     rng.shuffle(p_configs)
+
+    # Shuffle feasible values within each parameter config.
+    for p_config in p_configs:
+      if p_config._feasible_values:
+        rng.shuffle(p_config._feasible_values)
+
+    # Then put back in.
     for p_config in p_configs:
       search_space.add(p_config)
 

@@ -234,8 +234,18 @@ class SequentialWarper(StatefulWarper):
 
 
 def default_warper() -> StatefulWarper:
+  """Warper used in original paper."""
   return SequentialWarper([
       HalfRankWarper(),
-      LinearScalingWarper(),
-      SigmoidDampenWarper(),
+      LinearScalingWarper(scale=0.5),
+      SigmoidDampenWarper(curvature=1.0, scale=1.0),
+  ])
+
+
+def new_warper() -> StatefulWarper:
+  """New warper which may be more stable."""
+  return SequentialWarper([
+      HalfRankWarper(),
+      LinearScalingWarper(scale=1.0),
+      SigmoidDampenWarper(curvature=0.5, scale=1.0),
   ])

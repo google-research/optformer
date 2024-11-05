@@ -34,6 +34,10 @@ class XSerializer(SuggestionSerializer):
       factory=s_lib.PrimitiveSerializer, kw_only=True
   )
 
+  # Use decimal or scientific notation for numeric param values.
+  # Decimal works best only if search space is standardized.
+  use_scientific: bool = attrs.field(default=False, kw_only=True)
+
   def to_str(self, t: vz.TrialSuggestion, /) -> str:
     param_dict = t.parameters.as_dict()
 
@@ -41,7 +45,8 @@ class XSerializer(SuggestionSerializer):
     for pc in self.search_space.parameters:
       value = param_dict[pc.name]
       if isinstance(value, (float, int)):
-        new_param_dict[pc.name] = format(value, '.2e')  # Scientific notation.
+        float_format = '.2e' if self.use_scientific else '.2f'
+        new_param_dict[pc.name] = format(value, float_format)
       else:
         new_param_dict[pc.name] = value
 
@@ -49,3 +54,6 @@ class XSerializer(SuggestionSerializer):
     return self.primitive_serializer.to_str(
         {'params': new_param_dict, 'metadata': metadata_str}
     )
+
+
+SearchSpaceSerializer = vs_lib.SearchSpaceSerializer

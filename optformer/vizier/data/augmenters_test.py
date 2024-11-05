@@ -29,10 +29,11 @@ class SearchSpacePermuterTest(absltest.TestCase):
     ss = vz.SearchSpace()
     ss.add(vz.ParameterConfig.factory('A', bounds=(0, 1)))
     ss.add(vz.ParameterConfig.factory('B', bounds=(0, 1)))
-    ss.add(vz.ParameterConfig.factory('C', bounds=(0, 1)))
+    ss.add(vz.ParameterConfig.factory('C', feasible_values=['c1', 'c2', 'c3']))
 
     new_ss = augmenters.SearchSpacePermuter(seed=0).augment(ss)
     self.assertEqual([p.name for p in new_ss.parameters], ['A', 'C', 'B'])
+    self.assertEqual(new_ss.parameters[1].feasible_values, ['c3', 'c2', 'c1'])
 
 
 class MetricsConfigPermuterTest(absltest.TestCase):
