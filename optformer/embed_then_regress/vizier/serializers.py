@@ -45,7 +45,7 @@ class XSerializer(SuggestionSerializer):
     for pc in self.search_space.parameters:
       value = param_dict[pc.name]
       if isinstance(value, (float, int)):
-        float_format = '.2e' if self.use_scientific else '.2f'
+        float_format = '.4e' if self.use_scientific else '.4f'
         new_param_dict[pc.name] = format(value, float_format)
       else:
         new_param_dict[pc.name] = value

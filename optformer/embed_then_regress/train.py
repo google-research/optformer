@@ -27,6 +27,7 @@ from optformer.common.data import datasets as ds_lib
 from optformer.embed_then_regress import checkpointing as ckpt_lib
 from optformer.embed_then_regress import configs
 from optformer.embed_then_regress import icl_transformer
+from optformer.embed_then_regress import regression_metrics
 import tensorflow as tf
 
 
@@ -104,10 +105,12 @@ def loss_fn(
   target_mask = 1 - batch['mask']  # [B, L]
   target_nlogprob = nlogprob * target_mask  # [B, L]
 
-  avg_nlogprob = jnp.sum(target_nlogprob, axis=1) / jnp.sum(target_mask, axis=1)
+  avg_nlogprob = regression_metrics.masked_mean(target_nlogprob, target_mask)
   loss = jnp.mean(avg_nlogprob)  # [B] -> Scalar
-  # TODO: Get more metrics.
-  return loss, {'loss': loss}
+
+  metrics = regression_metrics.default_metrics(mean, batch['y'], target_mask)
+  metrics['loss'] = loss
+  return loss, metrics
 
 
 def train_step(
