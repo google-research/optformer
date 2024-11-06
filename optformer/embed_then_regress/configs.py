@@ -179,19 +179,22 @@ class DataConfig(abc.ABC):
   per_device_batch_size: int = 4
   max_token_length: int = 256
 
-  buffer_size: int = 10000
-
   def wrap_ds(
       self, ds: tf.data.Dataset, multi_gpu: bool = False
   ) -> tf.data.Dataset:
     """This should be used at the trainer level."""
     ds = self._tokenize_ds(ds)
-    ds = ds.repeat()
-    ds = ds.shuffle(buffer_size=self.buffer_size)
-
-    ds = ds.batch(self.per_device_batch_size, drop_remainder=True)
+    ds = ds.batch(
+        self.per_device_batch_size,
+        drop_remainder=True,
+        num_parallel_calls=tf.data.AUTOTUNE,
+    )
     if multi_gpu:  # Device count leading dimension, required by jax.pmap.
-      ds = ds.batch(jax.local_device_count(), drop_remainder=True)
+      ds = ds.batch(
+          jax.local_device_count(),
+          drop_remainder=True,
+          num_parallel_calls=tf.data.AUTOTUNE,
+      )
     ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
     return ds
 
@@ -217,10 +220,11 @@ class DataConfig(abc.ABC):
     transpose_x_only = lambda d: {
         k: tf.transpose(v.to_tensor()) if k == 'x' else v for k, v in d.items()
     }
-    ds = ds.map(transpose_x_only)
+    ds = ds.map(transpose_x_only, num_parallel_calls=tf.data.AUTOTUNE)
     ds = seqio.trim_and_pad_dataset(ds, feature_lengths)
     ds = ds.map(
-        lambda d: {k: tf.transpose(v) if k == 'x' else v for k, v in d.items()}
+        lambda d: {k: tf.transpose(v) if k == 'x' else v for k, v in d.items()},
+        num_parallel_calls=tf.data.AUTOTUNE,
     )
     return ds
 
