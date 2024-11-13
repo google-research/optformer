@@ -102,7 +102,7 @@ class ICLTransformer(nn.Module):
     self.embedder = self.embedder_factory()
 
     # X, Y, and concatenated X,Y embedders.
-    self.x_proj = nn.Sequential(
+    self.xm_proj = nn.Sequential(
         [Dense(self.d_model), nn.relu, Dense(self.d_model)]
     )
     self.y_proj = nn.Sequential(
@@ -136,20 +136,43 @@ class ICLTransformer(nn.Module):
       mask: jt.Bool[jax.Array, 'B L'],
       deterministic: bool | None = None,
       rng: jax.Array | None = None,
-  ) -> tuple[jt.Float[jax.Array, 'B L'], jt.Float[jax.Array, 'B L']]:
+      embedding_cache: dict[str, jax.Array] | None = None,
+  ) -> tuple[
+      jt.Float[jax.Array, 'B L'],
+      jt.Float[jax.Array, 'B L'],
+      dict[str, jax.Array],
+  ]:
     # pylint: disable=invalid-name
+    L = x.shape[1]
 
-    B, L, T = x.shape
-    x = jnp.reshape(x, (B * L, T))
-    x = self.embed(x)  # [B*L, E]
-    x = jnp.reshape(x, (B, L, -1))  # [B, L, E]
+    if embedding_cache is None:
+      x_emb = self.embed(x)  # [B, L, E]
+      metadata_emb = self.embed(metadata)  # [B, E]
+      embedding_cache = {'x': x_emb, 'metadata': metadata_emb}
+    else:
+      # Find starting index of target. Raise value error if masks are not all
+      # same, since dynamic_update_slice wouldn't work.
+      target_indices = jnp.sum(mask, axis=-1, dtype=jnp.int32)
+      if not jnp.all(target_indices == target_indices[0]):
+        raise ValueError('At inference, all masks must be the same in batch.')
+      target_index = target_indices[0]
 
-    metadata = self.embed(metadata)  # [B, E]
-    metadata = jnp.expand_dims(metadata, axis=1)  # [B, 1, E]
-    metadata = jnp.repeat(metadata, L, axis=1)  # [B, L, E]
-    x = jnp.concatenate((x, metadata), axis=-1)  # [B, L, 2E]
+      # Embed only the new tokens.
+      target_x = x[:, target_index:, :]  # [B=1, target_index, T]
+      target_x_emb = self.embed(target_x)  # [B=1, target_index, E]
 
-    xt_emb = self.x_proj(x)  # [B, L, D]
+      x_emb = jax.lax.dynamic_update_slice(
+          embedding_cache['x'],
+          target_x_emb,
+          start_indices=(0, target_index, 0),
+      )
+      metadata_emb = embedding_cache['metadata']
+
+    metadata_emb = jnp.expand_dims(metadata_emb, axis=1)  # [B, 1, E]
+    metadata_emb = jnp.repeat(metadata_emb, L, axis=1)  # [B, L, E]
+    xm_emb = jnp.concatenate((x_emb, metadata_emb), axis=-1)  # [B, L, 2E]
+
+    xt_emb = self.xm_proj(xm_emb)  # [B, L, D]
 
     # Force 0.0 values for target points using the mask.
     y = y * mask  # [B, L], element-wise multiplication
@@ -173,8 +196,12 @@ class ICLTransformer(nn.Module):
 
     mean = jnp.squeeze(mean, axis=-1)
     std = jnp.squeeze(std, axis=-1)
-    return mean, std
+    return mean, std, embedding_cache
 
   @nn.remat  # Reduce memory consumption during backward pass.
-  def embed(self, tokens: jt.Int[jax.Array, 'X T']):
-    return self.embedder(tokens)
+  def embed(
+      self, tokens: jt.Int[jax.Array, '*X T']
+  ) -> jt.Float[jax.Array, '*X E']:
+    reshaped_tokens = jnp.reshape(tokens, (-1, tokens.shape[-1]))
+    embeddings = self.embedder(reshaped_tokens)  # [-1, E]
+    return jnp.reshape(embeddings, tokens.shape[:-1] + (embeddings.shape[-1],))

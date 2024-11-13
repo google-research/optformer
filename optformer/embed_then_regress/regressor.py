@@ -40,18 +40,21 @@ class StatefulICLRegressor:
   params: flax_typing.FrozenVariableDict = attrs.field()
   vocab: seqio.Vocabulary = attrs.field()
 
-  max_trial_length: int = attrs.field(default=300, kw_only=True)  # L
+  max_memory_length: int = attrs.field(default=10000, kw_only=True)  # M >> L
   max_token_length: int = attrs.field(default=256, kw_only=True)  # T
 
   warper: normalization.StatefulWarper = attrs.field(
       factory=normalization.default_warper, kw_only=True
   )
 
-  # Internal state containing tokens.
-  _all_xt: jt.Int[np.ndarray, 'L T'] = attrs.field(init=False)
-  _all_yt: jt.Float[np.ndarray, 'L'] = attrs.field(init=False)
+  # Internal state containing history.
+  _all_xt: jt.Int[np.ndarray, 'M T'] = attrs.field(init=False)
+  _all_yt: jt.Float[np.ndarray, 'M'] = attrs.field(init=False)
   _mt: jt.Int[np.ndarray, 'T'] = attrs.field(init=False)
   _num_prev: int = attrs.field(init=False)
+  _embedding_cache: dict[str, jax.Array] | None = attrs.field(init=False)
+
+  # Jitted function.
   _jit_apply: Callable[..., Any] = attrs.field(init=False)
 
   def __attrs_post_init__(self):
@@ -64,25 +67,29 @@ class StatefulICLRegressor:
     """Returns prediction in normalized/warped space."""
     num_query = len(xs)
 
-    temp_xt = np.copy(self._all_xt)
-    temp_xt[self._num_prev : self._num_prev + num_query] = self._tokenize(xs)
+    # Use instead of max_memory_length to reduce embedding costs.
+    max_trial_length = self._num_prev + num_query  # L
 
-    temp_yt = np.copy(self._all_yt)
+    temp_xt = np.copy(self._all_xt)[:max_trial_length]
+    temp_xt[self._num_prev :] = self._tokenize(xs)
+
+    temp_yt = np.copy(self._all_yt)[:max_trial_length]
     temp_yt = self.warper.warp(temp_yt)
 
     temp_mt = np.copy(self._mt)
 
-    mask = np.ones(self.max_trial_length, dtype=bool)
+    mask = np.ones(max_trial_length, dtype=bool)
     mask[self._num_prev :] = False
 
     # Need to add batch dimension to all inputs.
-    mean, std = self._jit_apply(
+    mean, std, self._embedding_cache = self._jit_apply(
         self.params,
         x=np.expand_dims(temp_xt, axis=0),  # [B=1, L, T],
         y=np.expand_dims(temp_yt, axis=0),  # [B=1, L],
         metadata=np.expand_dims(temp_mt, axis=0),  # [B=1, T],
         mask=np.expand_dims(mask, axis=0),  # [B=1, L],
         deterministic=True,
+        embedding_cache=self._embedding_cache,
     )
 
     mean, std = np.squeeze(mean, axis=0), np.squeeze(std, axis=0)
@@ -97,6 +104,7 @@ class StatefulICLRegressor:
     self._all_xt[self._num_prev : self._num_prev + num_pts] = self._tokenize(xs)
     self._all_yt[self._num_prev : self._num_prev + num_pts] = np.array(ys)
     self._num_prev += num_pts
+    self._embedding_cache = None  # Need to recompute historical embeddings.
 
     self.warper.train(self._all_yt[: self._num_prev])
 
@@ -105,11 +113,12 @@ class StatefulICLRegressor:
 
   def reset(self) -> None:
     self._all_xt = np.zeros(
-        (self.max_trial_length, self.max_token_length), dtype=np.int32
+        (self.max_memory_length, self.max_token_length), dtype=np.int32
     )
-    self._all_yt = np.zeros(self.max_trial_length, dtype=np.float32)
+    self._all_yt = np.zeros(self.max_memory_length, dtype=np.float32)
     self._mt = np.zeros(self.max_token_length, dtype=np.int32)
     self._num_prev = 0
+    self._embedding_cache = None
 
   def _tokenize(self, ss: Sequence[str]) -> jt.Int[np.ndarray, 'S T']:
     """Converts ss (strings) to tokens."""

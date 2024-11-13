@@ -40,10 +40,6 @@ default_optimizer_factory = vb.VectorizedOptimizerFactory(
     use_fori=False,
 )
 
-default_scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
-    lambda _: acq_lib.UCB()
-)
-
 
 @attrs.define
 class TransformerICLOptDesigner(vza.Designer):
@@ -57,7 +53,7 @@ class TransformerICLOptDesigner(vza.Designer):
       default=default_optimizer_factory, kw_only=True
   )
   _acq_fn: acq_lib.AcquisitionFunction = attrs.field(
-      default=acq_lib.UCB(), kw_only=True
+      factory=acq_lib.UCB, kw_only=True
   )
 
   _rng: jax.Array = attrs.field(
