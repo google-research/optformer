@@ -36,4 +36,4 @@ class Filter(Generic[_T], abc.ABC):
       ValueError: Instead of returning False, optionally
         raise an Error to improve logging at the cost of
         performance.
-    """
+    """  # pytype: disable=bad-return-type
