@@ -78,6 +78,7 @@ class ModelConfig:
   nhead: int = 16
   dropout: float = 0.1
   num_layers: int = 8
+  use_metadata: bool = True
   std_transform: str = 'exp'
 
   def create_model(

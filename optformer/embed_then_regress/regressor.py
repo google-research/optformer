@@ -31,6 +31,8 @@ from tensorflow_probability.substrates import jax as tfp
 
 tfd = tfp.distributions
 
+EmbeddingCache = icl_transformer.EmbeddingCache
+
 
 # TODO: Maybe refactor omnipred2 regressor base class.
 @attrs.define
@@ -54,7 +56,7 @@ class StatefulICLRegressor:
   _all_yt: jt.Float[np.ndarray, 'L'] = attrs.field(init=False)
   _mt: jt.Int[np.ndarray, 'T'] = attrs.field(init=False)
   _num_prev: int = attrs.field(init=False)
-  _cache: dict[str, jax.Array] | None = attrs.field(init=False)
+  _cache: EmbeddingCache = attrs.field(init=False)
 
   # Jitted function.
   _jit_apply: Callable[..., Any] = attrs.field(init=False)
@@ -95,7 +97,7 @@ class StatefulICLRegressor:
     self._all_xt[self._num_prev : self._num_prev + num_pts] = self._tokenize(xs)
     self._all_yt[self._num_prev : self._num_prev + num_pts] = np.array(ys)
     self._num_prev += num_pts
-    self._cache = None  # Need to recompute historical embeddings.
+    self._cache = EmbeddingCache()  # Need to recompute historical embeddings.
 
     self.warper.train(self._all_yt[: self._num_prev])
 
@@ -109,7 +111,7 @@ class StatefulICLRegressor:
     self._all_yt = np.zeros(self.max_trial_length, dtype=np.float32)
     self._mt = np.zeros(self.max_token_length, dtype=np.int32)
     self._num_prev = 0
-    self._cache = None
+    self._cache = EmbeddingCache()
 
   def _tokenize(self, ss: Sequence[str]) -> jt.Int[np.ndarray, 'S T']:
     """Converts ss (strings) to tokens."""
