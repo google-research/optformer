@@ -130,56 +130,26 @@ class ICLTransformer(nn.Module):
 
   def __call__(
       self,
-      x: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
+      x_emb: jt.Float[jax.Array, 'B L E'],
       y: jt.Float[jax.Array, 'B L'],
-      metadata: jt.Int[jax.Array, 'B T'],  # Study-level tokenized metadata.
+      metadata_emb: jt.Float[jax.Array, 'B E'],
       mask: jt.Bool[jax.Array, 'B L'],
       deterministic: bool | None = None,
       rng: jax.Array | None = None,
-      embedding_cache: dict[str, jax.Array] | None = None,
-  ) -> tuple[
-      jt.Float[jax.Array, 'B L'],
-      jt.Float[jax.Array, 'B L'],
-      dict[str, jax.Array],
-  ]:
+  ) -> tuple[jt.Float[jax.Array, 'B L'], jt.Float[jax.Array, 'B L']]:
+    """Main ICL Transformer call, **after** embeddings have been computed."""
+
     # pylint: disable=invalid-name
-    L = x.shape[1]
+    L = x_emb.shape[1]
 
-    if embedding_cache is None:
-      x_emb = self.embed(x)  # [B, L, E]
-      metadata_emb = self.embed(metadata)  # [B, E]
-      embedding_cache = {'x': x_emb, 'metadata': metadata_emb}
-    else:
-      # Find starting index of target. Raise value error if masks are not all
-      # same, since dynamic_update_slice wouldn't work.
-      target_indices = jnp.sum(mask, axis=-1, dtype=jnp.int32)
-      if not jnp.all(target_indices == target_indices[0]):
-        raise ValueError('At inference, all masks must be the same in batch.')
-      target_index = target_indices[0]
-
-      # Embed only the new tokens.
-      target_x = x[:, target_index:, :]  # [B=1, target_index, T]
-      target_x_emb = self.embed(target_x)  # [B=1, target_index, E]
-
-      x_emb = jax.lax.dynamic_update_slice(
-          embedding_cache['x'],
-          target_x_emb,
-          start_indices=(0, target_index, 0),
-      )
-      metadata_emb = embedding_cache['metadata']
-
-    metadata_emb = jnp.expand_dims(metadata_emb, axis=1)  # [B, 1, E]
-    metadata_emb = jnp.repeat(metadata_emb, L, axis=1)  # [B, L, E]
-    xm_emb = jnp.concatenate((x_emb, metadata_emb), axis=-1)  # [B, L, 2E]
-
-    xt_emb = self.xm_proj(xm_emb)  # [B, L, D]
+    x_emb = self.x_proj(x_emb)  # [B, L, D]
 
     # Force 0.0 values for target points using the mask.
     y = y * mask  # [B, L], element-wise multiplication
 
     y = jnp.expand_dims(y, axis=-1)  # [B, L, 1]
     yt_emb = self.y_proj(y)  # [B, L, D]
-    xy_emb = self.xy_proj(jnp.concatenate((xt_emb, yt_emb), axis=-1))
+    xy_emb = self.xy_proj(jnp.concatenate((x_emb, yt_emb), axis=-1))
 
     # Broadcast mask to all heads and additional axis.
     # All tokens attend to context tokens: mask[:, :num_ctx] = True
@@ -196,7 +166,80 @@ class ICLTransformer(nn.Module):
 
     mean = jnp.squeeze(mean, axis=-1)
     std = jnp.squeeze(std, axis=-1)
-    return mean, std, embedding_cache
+    return mean, std
+
+  def fit(
+      self,
+      x: jt.Int[jax.Array, 'B L T'],  # T = number of tokens.
+      y: jt.Float[jax.Array, 'B L'],
+      metadata: jt.Int[jax.Array, 'B T'],  # Study-level tokenized metadata.
+      mask: jt.Bool[jax.Array, 'B L'],
+      deterministic: bool | None = None,
+      rng: jax.Array | None = None,
+  ) -> tuple[jt.Float[jax.Array, 'B L'], jt.Float[jax.Array, 'B L']]:
+    """For training / eval loss metrics only."""
+    # pylint: disable=invalid-name
+    L = x.shape[1]
+
+    x_emb = self.embed(x)  # [B, L, E]
+    metadata_emb = self.embed(metadata)  # [B, E]
+
+    metadata_emb = jnp.expand_dims(metadata_emb, axis=1)  # [B, 1, E]
+    metadata_emb = jnp.repeat(metadata_emb, L, axis=1)  # [B, L, E]
+    xm_emb = jnp.concatenate((x_emb, metadata_emb), axis=-1)  # [B, L, 2E]
+    return self.__call__(xm_emb, y, metadata_emb, mask, deterministic, rng)
+
+  def infer(
+      self,
+      x_padded: jt.Int[jax.Array, 'L T'],  # Padded to avoid re-jitting.
+      y_padded: jt.Float[jax.Array, 'L'],  # Padded to avoid re-jitting.
+      x_targ: jt.Int[jax.Array, 'Q T'],  # Q is fixed to avoid re-jitting.
+      metadata: jt.Int[jax.Array, 'T'],
+      mask: jt.Bool[jax.Array, 'L'],
+      cache: dict[str, jax.Array] | None = None,  # For caching embeddings.
+  ) -> tuple[
+      jt.Float[jax.Array, 'L'],
+      jt.Float[jax.Array, 'L'],
+      dict[str, jax.Array],
+  ]:
+    """Friendly for inference, no batch dimension."""
+    if cache is None:
+      x_padded_emb = self.embed(x_padded)  # [L, E]
+      metadata_emb = self.embed(metadata)  # [E]
+      cache = {'x_padded_emb': x_padded_emb, 'metadata_emb': metadata_emb}
+    else:
+      x_padded_emb = cache['x_padded_emb']  # [L, E]
+      metadata_emb = cache['metadata_emb']  # [E]
+
+    x_targ_emb = self.embed(x_targ)  # [Q, E]
+
+    L, E = x_padded_emb.shape  # pylint: disable=invalid-name
+
+    target_index = jnp.sum(mask, dtype=jnp.int32)  # [1]
+
+    # Combine target and historical (padded) embeddings.
+    padded_target_emb = jnp.zeros((L, E), dtype=x_targ_emb.dtype)
+    padded_target_emb = jax.lax.dynamic_update_slice_in_dim(
+        padded_target_emb, x_targ_emb, start_index=target_index, axis=0
+    )
+    w_mask = jnp.expand_dims(mask, axis=-1)  # [L, 1]
+    x_emb = x_padded_emb * w_mask + padded_target_emb * (1 - w_mask)
+
+    # Attach metadata embeddings too.
+    metadata_emb = jnp.expand_dims(metadata_emb, axis=0)  # [1, E]
+    metadata_emb = jnp.repeat(metadata_emb, L, axis=0)  # [L, E]
+    xm_emb = jnp.concatenate((x_emb, metadata_emb), axis=-1)  # [L, 2E]
+
+    # TODO: Are these batch=1 expands necessary?
+    mean, std = self.__call__(
+        x_emb=jnp.expand_dims(xm_emb, axis=0),
+        y=jnp.expand_dims(y_padded, axis=0),
+        metadata_emb=jnp.expand_dims(metadata_emb, axis=0),
+        mask=jnp.expand_dims(mask, axis=0),
+        deterministic=True,
+    )
+
+    return jnp.squeeze(mean, axis=0), jnp.squeeze(std, axis=0), cache
 
   @nn.remat  # Reduce memory consumption during backward pass.
   def embed(

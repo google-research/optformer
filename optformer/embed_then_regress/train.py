@@ -97,8 +97,8 @@ def loss_fn(
 ) -> tuple[jax.Array, Mapping[str, Scalar]]:
   """Loss function with metrics."""
   # pylint: disable=invalid-name
-  mean, std, _ = model.apply(
-      params, deterministic=not training, rng=rng, **batch
+  mean, std = model.apply(
+      params, deterministic=not training, rng=rng, method=model.fit, **batch
   )
   nlogprob = -jax.scipy.stats.norm.logpdf(batch['y'], mean, std)  # [B, L]
 
