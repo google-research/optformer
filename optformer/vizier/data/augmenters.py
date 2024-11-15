@@ -495,7 +495,7 @@ class HashProblemMetadata(VizierAugmenter):
 class StandardizeSearchSpace(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
   """Standardizes the search space and corresponding trials.
 
-  DOUBLE, INTEGER, and DISCRETE parameters are scaled to [0,1] range, and
+  DOUBLE, INTEGER, and DISCRETE parameters are scaled to user-set bounds, and
   corresponding ParameterConfigs are all DOUBLE.
 
   CATEGORICAL params use ["0", "1", "2", ...] or ["a", "b", "c", ...].
@@ -504,7 +504,8 @@ class StandardizeSearchSpace(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
   don't care about reversibility back into original space.
   """
 
-  alpha_categorical: bool = attrs.field(default=False)
+  alpha_categories: bool = attrs.field(default=False)
+  float_bounds: tuple[float, float] = attrs.field(default=(0.0, 1.0))
 
   def augment(self, study: vz.ProblemAndTrials, /) -> vz.ProblemAndTrials:
     # Create a forward converter to map to normalized feature space.
@@ -519,13 +520,13 @@ class StandardizeSearchSpace(VizierIdempotentAugmenter[vz.ProblemAndTrials]):
     new_search_space = vz.SearchSpace()
     for i, pc in enumerate(old_search_space.parameters):
       if pc.type == vz.ParameterType.CATEGORICAL:
-        if self.alpha_categorical:
+        if self.alpha_categories:
           feasibles = [chr(j + 97) for j in range(len(pc.feasible_values))]
         else:
           feasibles = [str(j) for j in range(len(pc.feasible_values))]
         new_pc = vz.ParameterConfig.factory(f'x{i}', feasible_values=feasibles)
       else:
-        new_pc = vz.ParameterConfig.factory(f'x{i}', bounds=(0.0, 1.0))
+        new_pc = vz.ParameterConfig.factory(f'x{i}', bounds=self.float_bounds)
       new_search_space.add(new_pc)
     backward_cvtr = converters.TrialToArrayConverter.from_study_config(
         vz.ProblemStatement(new_search_space)

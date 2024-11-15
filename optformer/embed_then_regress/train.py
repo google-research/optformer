@@ -82,7 +82,9 @@ def create_train_state(
   """Creates initial train state with possibility to override weights."""
   rng = jax.random.PRNGKey(seed)
   example_batch = compress_batch(example_batch)
-  params = model.init(rng, deterministic=False, **example_batch)
+  params = model.init(
+      rng, method=model.fit, deterministic=False, **example_batch
+  )
 
   opt_state = optimizer.init(params)
   return TrainState(jnp.array(0), params, opt_state, rng)
