@@ -67,7 +67,7 @@ def register_task(
     seqio_dataset_fn: seqio.DatasetFnCallable,
     output_features: dict[str, seqio.Feature],
     distributed: bool = True,
-):
+) -> seqio.Task:
   """Register task from dataset function.
 
   Args:
@@ -76,6 +76,9 @@ def register_task(
       we apply the distributed wrapper, this can be a "dummy".
     output_features: Specifies lengths and preprocessing.
     distributed: Whether the data should come from a reverb server instead.
+
+  Returns:
+    Registered task.
   """
 
   if distributed:
@@ -86,7 +89,7 @@ def register_task(
       splits=(tfds.Split.TRAIN, tfds.Split.VALIDATION, tfds.Split.TEST),
   )
 
-  seqio.TaskRegistry.add(
+  return seqio.TaskRegistry.add(
       task_name,
       source,
       output_features,
