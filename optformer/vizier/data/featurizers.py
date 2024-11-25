@@ -25,6 +25,8 @@ from optformer.vizier.data import augmenters
 import tensorflow as tf
 from vizier import pyvizier as vz
 
+VizierSerializerFactory = s_lib.SerializerFactory[vz.ProblemAndTrials]
+
 
 # `slots=False` allows `functools.cached_property` to work properly.
 @attrs.define(slots=False)
@@ -32,15 +34,13 @@ class VizierStudyFeaturizer(featurizers.Featurizer[vz.ProblemAndTrials]):
   """Directly featurizes a generic study."""
 
   # ---------------------------------------------------------------------------
-  # Inputs/Targets serializers act on an entire study for generality.
+  # Serializers act on an entire study for generality.
   # Written as factories to allow randomization/data augmentation in training.
   # ---------------------------------------------------------------------------
-  _inputs_serializer_factory: s_lib.SerializerFactory[vz.ProblemAndTrials] = (
-      attrs.field(init=True)
+  _serializer_factories: dict[str, VizierSerializerFactory] = attrs.field(
+      init=True
   )
-  _targets_serializer_factory: s_lib.SerializerFactory[vz.ProblemAndTrials] = (
-      attrs.field(init=True)
-  )
+
   # ---------------------------------------------------------------------------
   # Dedicated augmenters and filters.
   # ---------------------------------------------------------------------------
@@ -68,15 +68,15 @@ class VizierStudyFeaturizer(featurizers.Featurizer[vz.ProblemAndTrials]):
   @functools.cached_property
   def element_spec(self) -> dict[str, tf.TensorSpec]:
     return {
-        'inputs': tf.TensorSpec(shape=(), dtype=tf.string),
-        'targets': tf.TensorSpec(shape=(), dtype=tf.string),
+        k: tf.TensorSpec(shape=(), dtype=tf.string)
+        for k in self._serializer_factories.keys()
     }
 
   @functools.cached_property
   def empty_output(self) -> dict[str, tf.Tensor]:
     return {
-        'inputs': tf.constant('', dtype=tf.string),
-        'targets': tf.constant('', dtype=tf.string),
+        k: tf.TensorSpec(shape='', dtype=tf.string)
+        for k in self._serializer_factories.keys()
     }
 
   def to_features(self, study: vz.ProblemAndTrials, /) -> dict[str, tf.Tensor]:
@@ -88,11 +88,9 @@ class VizierStudyFeaturizer(featurizers.Featurizer[vz.ProblemAndTrials]):
       if not study_filter(study):
         raise ValueError(f'{study_filter} rejected study.')
 
-    inputs = self._inputs_serializer_factory().to_str(study)
-    targets = self._targets_serializer_factory().to_str(study)
     features = {
-        'inputs': tf.constant(inputs, dtype=tf.string),
-        'targets': tf.constant(targets, dtype=tf.string),
+        k: tf.constant(serializer_factory().to_str(study), dtype=tf.string)
+        for k, serializer_factory in self._serializer_factories.items()
     }
 
     for features_filter in self._features_filters:

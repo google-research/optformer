@@ -43,8 +43,10 @@ class OmnipredTest(absltest.TestCase):
     # Randomly initialized small model w/ deterministic seed.
     self.model = testing.small_encoder_decoder(self.vocab, self.num_embeddings)
     self.featurizer = featurizers.VizierStudyFeaturizer(
-        serialization.OmniPredInputsSerializer,
-        serialization.OmniPredTargetsSerializer,
+        {
+            'inputs': serialization.OmniPredInputsSerializer,
+            'targets': serialization.OmniPredTargetsSerializer,
+        },
     )
 
     self.inference_config = inference.InferenceConfig(
