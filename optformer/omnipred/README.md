@@ -42,12 +42,9 @@ If you found this codebase useful, please consider citing our paper. Thanks!
                   Sagi Perel and
                   Yutian Chen},
   title        = {OmniPred: Language Models as Universal Regressors},
-  journal      = {CoRR},
-  volume       = {abs/2402.14547},
+  journal      = {Trans. Mach. Learn. Res.},
+  volume       = {2024},
   year         = {2024},
-  url          = {https://doi.org/10.48550/arXiv.2402.14547},
-  doi          = {10.48550/ARXIV.2402.14547},
-  eprinttype    = {arXiv},
-  eprint       = {2402.14547},
+  url          = {https://openreview.net/forum?id=t9c3pfrR1X},
 }
 ```
