@@ -97,5 +97,5 @@ def register_task(
           seqio.preprocessors.tokenize,
           seqio.preprocessors.append_eos_after_trim,
       ],
-      shuffle_buffer_size=100000,
+      shuffle_buffer_size=1000,
   )

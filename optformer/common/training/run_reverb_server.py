@@ -21,7 +21,7 @@ import tensorflow_datasets as tfds
 
 
 _REVERB_BUFFER_SIZE = flags.DEFINE_integer(
-    'reverb_buffer_size', int(1e6), 'Reverb buffer size.'
+    'reverb_buffer_size', int(10000), 'Reverb buffer size.'
 )
 _REVERB_PORT = flags.DEFINE_integer('reverb_port', None, 'Reverb server port.')
 

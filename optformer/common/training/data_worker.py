@@ -73,8 +73,8 @@ def produce_data(
     dataset = split_to_dataset[split]
 
     data = next(dataset)
-    logging.log_first_n(logging.INFO, data, 1000)
-    logging.log_every_n(logging.INFO, 'Adding an item %d', 1000, count)
+    logging.log_first_n(logging.INFO, data, 10)
+    logging.log_every_n(logging.INFO, 'Adding an item %d', 100, count)
     count += 1
 
     # Here we are sending one element at a time. Alternatively, we can send
