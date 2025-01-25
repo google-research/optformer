@@ -18,13 +18,15 @@ from optformer.decoding_regression import models
 from optformer.decoding_regression import vocabs
 import tensorflow as tf
 from absl.testing import absltest
+from absl.testing import parameterized
 
 keras = tf.keras
 
 
-class ModelTest(absltest.TestCase):
+class ModelTest(parameterized.TestCase):
 
-  def test_e2e(self):
+  @parameterized.parameters((None, None), (5, None), (None, 0.5), (3, 0.1))
+  def test_e2e(self, top_k, top_p):
     # pylint: disable=invalid-name
     encoder = tf.keras.models.Sequential([])
     vocab = vocabs.UnnormalizedVocab()
@@ -54,7 +56,7 @@ class ModelTest(absltest.TestCase):
         validation_split=0.2,
     )
 
-    floats = decoder.decode(X[:10])
+    floats = decoder.decode(X[:10], top_k=top_k, top_p=top_p)
     self.assertLen(floats, 10)
 
 

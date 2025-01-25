@@ -110,6 +110,8 @@ class AttentionDecoder(keras.Model):
       self,
       encoder_input: jt.Float[jt.Array, 'B F'],
       temperature: float = 1.0,
+      top_k: int | None = None,
+      top_p: float | None = None,
   ) -> jt.Float[jt.Array, 'B']:
     """Performs temperature sampling."""
     # pylint: disable=invalid-name
@@ -122,31 +124,29 @@ class AttentionDecoder(keras.Model):
       # Logit restriction
       current_logits[:, ~self._vocab.logit_mask(i)] = NEG_INF
 
+      # Apply top-k and top-p filtering
+      if top_k is not None:
+        top_k = min(top_k, current_logits.shape[-1])  # prevent index errors
+        thresholds = np.sort(current_logits, axis=-1)[:, -top_k][:, np.newaxis]
+        current_logits = np.where(
+            current_logits < thresholds, NEG_INF, current_logits
+        )
+
+      if top_p is not None:
+        probs = sp.special.softmax(current_logits / temperature, axis=-1)
+        sorted_probs = np.sort(probs, axis=-1)[:, ::-1]
+        cumulative_probs = np.cumsum(sorted_probs, axis=-1)
+        cutoff_indices = np.argmax(cumulative_probs > top_p, axis=-1)
+        for batch_idx in range(B):
+          sorted_indices = np.argsort(current_logits[batch_idx, :])
+          top_k_indices = sorted_indices[: -cutoff_indices[batch_idx]]
+          current_logits[batch_idx, top_k_indices] = NEG_INF
+
       # [B, V]
       probs = sp.special.softmax(current_logits / temperature, axis=-1)
 
       # Sample tokens.
       sampled_ids = vectorized_sample(probs)
-      token_ids[:, i] = np.array(sampled_ids)
-
-    return np.array([self._vocab.from_int(toks) for toks in token_ids])
-
-  def greedy_decode(
-      self, encoder_input: jt.Float[jt.Array, 'B F']
-  ) -> jt.Float[jt.Array, 'B']:
-    """Performs greedy decoding."""
-    # pylint: disable=invalid-name
-    B = encoder_input.shape[0]
-    token_ids = -1 * np.ones((B, self._vocab.token_length), dtype=int)
-
-    for i in range(self._vocab.token_length):
-      logits = self.predict([encoder_input, token_ids[:, :i]])
-      current_logits = logits[:, -1, :]
-      # Logit restriction
-      current_logits[:, ~self._vocab.logit_mask(i)] = NEG_INF
-
-      # Pick argmax instead.
-      sampled_ids = np.argmax(current_logits, axis=-1)  # [B]
       token_ids[:, i] = np.array(sampled_ids)
 
     return np.array([self._vocab.from_int(toks) for toks in token_ids])
