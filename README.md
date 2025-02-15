@@ -19,6 +19,7 @@ projects:
 
 * [**Original OptFormer (Chen et al., 2022)**](https://github.com/google-research/optformer/tree/main/optformer/original)
 * [**OmniPred (Song et al., 2024)**](https://github.com/google-research/optformer/tree/main/optformer/omnipred)
+* [**Understanding LLM Embeddings (Tang et al., 2024)**](https://github.com/google-research/optformer/blob/main/optformer/t5x/embedders.py)
 * [**Embed-then-Regress (Nguyen et al., 2024)**](https://github.com/google-research/optformer/tree/main/optformer/embed_then_regress)
 * [**Decoding-based Regression (Song and Bahri, 2025)**](https://github.com/google-research/optformer/tree/main/optformer/decoding_regression)
 
