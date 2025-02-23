@@ -67,6 +67,7 @@ class AttentionDecoder(nn.Module):
         self,
         encoder: nn.Module,         # assumed to be a PyTorch module
         vocab,                      # assumed to have: size, token_length, logit_mask(step), from_int(seq)
+        embedding_sizes: dict,      # dict of embedding sizes for each feature
         units: int = 128,
         num_layers: int = 1,
         num_heads: int = 1,
@@ -83,6 +84,8 @@ class AttentionDecoder(nn.Module):
         self._num_heads = num_heads
         self._dropout = dropout
 
+        self._cat_embeddings = nn.ModuleList([nn.Embedding(num_classes, emb_size) for num_classes, emb_size in embedding_sizes.values()])
+        
         # Project encoder output (of size encoder_dim) to units (D)
         self._enc_proj = nn.Linear(encoder_dim, units)
 
@@ -100,13 +103,22 @@ class AttentionDecoder(nn.Module):
 
     def forward(self, inputs):
         """
-        inputs: a tuple (encoder_input, decoded_ids)
-          - encoder_input: [B, F] tensor from the encoder.
+        inputs: a tuple (numerical_input, categorical_input, decoded_ids)
+          - numerical_input: [B, L] tensors of numerical and categorical features.
+          - categorical_input: [B, L] tensors of numerical and categorical features.
           - decoded_ids: [B, L_decoded] tensor of token ids.
         """
-        encoder_input, decoded_ids = inputs  # unpack inputs
+        encoder_input_num, encoder_input_cat, decoded_ids = inputs  # unpack inputs
         # Get encoder output and project it: [B, encoder_dim] -> [B, units]
-        encoded = self._encoder(encoder_input)
+        encoded_num = self._encoder(encoder_input_num)
+        
+        # Encode categorical features using embeddings
+        cat_embeds = [emb(encoder_input_cat[:, i]) for i, emb in enumerate(self._cat_embeddings)]
+        encoded_cat = torch.cat(cat_embeds, dim=-1)
+
+        # Concatenate numerical and categorical embeddings
+        encoded = torch.cat([encoded_num, encoded_cat], dim=-1)
+
         encoded = self._enc_proj(encoded)
         # Get token embeddings for the decoded tokens: [B, L_decoded] -> [B, L_decoded, units]
         decoded = self._token_emb(decoded_ids)
