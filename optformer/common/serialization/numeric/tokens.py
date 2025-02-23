@@ -194,7 +194,7 @@ class IEEEFloatTokenSerializer(
     e = e.zfill(self.num_exponent_digits)
 
     mantissa = np.base_repr(
-        abs_f * self.base ** (self.num_mantissa_digits - 1 - exponent),
+        np.int64(abs_f * self.base ** (self.num_mantissa_digits - 1 - exponent)),
         base=self.base,
     )
 
