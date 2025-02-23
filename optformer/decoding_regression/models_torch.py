@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Regression models with Pytorch."""
 
 import jaxtyping as jt
 import numpy as np
 from optformer.decoding_regression import vocabs
 import scipy as sp
+
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 NEG_INF = -1e7
 
@@ -29,11 +31,6 @@ def sample_from_probs(prob_vector: jt.Float[jt.Array, 'P']):
 
 # Vectorize the function to apply it over the batch dimension
 vectorized_sample = np.vectorize(sample_from_probs, signature='(n)->()')
-
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 NEG_INF = float('-inf')
 
@@ -191,16 +188,34 @@ class AttentionDecoder(nn.Module):
         outputs = [self._vocab.from_int(token_ids[b].tolist()) for b in range(B)]
         return outputs
 
-
 def weighted_sparse_categorical_crossentropy(labels, logits, weights=None):
-  """Weighted version of sparse categorical cross entropy."""
+    """
+    Weighted version of sparse categorical cross entropy.
 
-  ce = tf.nn.sparse_softmax_cross_entropy_with_logits(labels, logits)
-  if weights is None:
-    return ce
+    Args:
+        labels (torch.Tensor): Tensor of shape [B, L] with integer class labels.
+        logits (torch.Tensor): Tensor of shape [B, L, V] with raw logits.
+        weights (torch.Tensor, optional): Weights tensor; expected shape [B, L] or broadcastable
+                                          to that shape. If None, no weighting is applied.
+    
+    Returns:
+        torch.Tensor: Loss tensor of shape [B, L] with the weighted loss per token.
+    """
+    B, L, V = logits.size()
+    # Flatten logits and labels to compute loss per token.
+    logits_flat = logits.view(-1, V)  # shape [B*L, V]
+    labels_flat = labels.view(-1)     # shape [B*L]
+    
+    # Compute unweighted loss per token.
+    ce_flat = F.cross_entropy(logits_flat, labels_flat, reduction='none')
+    ce = ce_flat.view(B, L)  # reshape back to [B, L]
+    
+    if weights is None:
+        return ce
 
-  weights = tf.cast(weights, dtype=tf.float32)
-  normalized_weights = (
-      labels.shape[-1] * weights / tf.reduce_sum(weights, axis=-1)
-  )
-  return ce * normalized_weights
+    # Ensure weights are floats and normalize along the sequence length.
+    weights = weights.float()
+    # Multiply by L (the number of tokens) and divide by the sum of weights for each batch.
+    normalized_weights = (L * weights) / torch.sum(weights, dim=-1, keepdim=True)
+    
+    return ce * normalized_weights
