@@ -96,5 +96,39 @@ class SimpleFloatTextSerializerTest(parameterized.TestCase):
     self.assertTrue(np.isnan(serializer.from_str('nan')))
 
 
+class NormalizedFloatSerializerTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      (0.0, 16, '0.00', 0.0),
+      (1.0, 16, '0.ff', 0.9960837),
+      (0.0, 10, '0.00000', 0.0),
+      (1.0, 10, '0.99999', 1.0),
+      (0.5, 10, '0.50000', 0.5),
+      (0.2, 10, '0.20000', 0.2),
+      (1 / 7, 7, '0.10000', 1 / 7),
+      (1 / 3, 10, '0.33333', 1 / 3),
+  )
+  def test_default(
+      self, f: float, base: int, serialized: str, deserialized: float
+  ):
+    serializer = text.NormalizedFloatSerializer(
+        precision=len(serialized) - 2, base=base, digit_map='0123456789abcdef'
+    )
+    self.assertEqual(serializer.to_str(f), serialized)
+    self.assertAlmostEqual(
+        serializer.from_str(serialized), deserialized, places=4
+    )
+
+  @parameterized.parameters((2,), (8,), (10,), (16,), (36,))
+  def test_different_bases(self, base: int):
+    serializer = text.NormalizedFloatSerializer(
+        precision=5, base=base, digit_map='0123456789abcdefghijklmnopqrstuvwxyz'
+    )
+    f = 0.5
+    serialized = serializer.to_str(f)
+    deserialized = serializer.from_str(serialized)
+    self.assertAlmostEqual(deserialized, f)
+
+
 if __name__ == '__main__':
   absltest.main()

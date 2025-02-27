@@ -139,3 +139,53 @@ class SimpleFloatTextSerializer(FloatTextSerializer):
 
   def from_str(self, s: str, /) -> float:
     return float(s)
+
+
+@attrs.define(kw_only=True)
+class NormalizedFloatSerializer(FloatTextSerializer):
+  """Represent floats in base B, for values within [0, 1]."""
+
+  base: int = attrs.field(default=10)
+  precision: int = attrs.field(default=5)
+  digit_map: str = attrs.field(default='0123456789abcdefghijklmnopqrstuvwxyz')
+
+  def __attrs_post_init__(self):
+    if self.base > len(self.digit_map):
+      raise ValueError(
+          f'Base {self.base} is too large for the provided digit map.'
+      )
+    if self.base < 2:
+      raise ValueError(f'Base {self.base} must be at least 2.')
+
+  def to_str(self, f: float, /) -> str:
+    if f == 1.0:
+      return '0.' + self.digit_map[self.base - 1] * self.precision
+    if not 0 <= f <= 1:
+      raise ValueError(f'Input float {f} is not within the range [0, 1].')
+    if f == 0.0:
+      return '0.' + '0' * self.precision
+
+    fractional_part = f
+
+    base_b_fraction = ''
+    for _ in range(self.precision):
+      fractional_part *= self.base
+      digit_value = int(fractional_part)
+      base_b_fraction += self.digit_map[digit_value]  # use digit map
+      fractional_part -= digit_value
+
+    return f'0.{base_b_fraction}'
+
+  def from_str(self, s: str, /) -> float:
+    if not s.startswith('0.'):
+      raise ValueError(
+          f"Input string '{s}' is not a valid base {self.base} fractional"
+          " representation starting with '0.'"
+      )
+
+    fraction_str = s[2:]  # remove "0." prefix
+    f = 0.0
+    for i, digit_char in enumerate(fraction_str):
+      digit_value = self.digit_map.index(digit_char)  # reverse digit map
+      f += digit_value * (self.base ** -(i + 1))
+    return f
