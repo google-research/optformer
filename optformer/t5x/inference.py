@@ -16,7 +16,7 @@
 
 import dataclasses
 import functools
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, Sequence, TypeVar
 
 import gin
 import jax
@@ -82,13 +82,17 @@ class InferenceConfig(Generic[_T]):
   @classmethod
   @functools.cache
   def from_gin_file(
-      cls, file: str, step: Optional[int] = None, restore_state: bool = True
+      cls,
+      file: str,
+      step: Optional[int] = None,
+      restore_state: bool = True,
+      gin_bindings: Sequence[str] = (),
   ) -> 'InferenceConfig[_T]':
     """Parses gin file with pre-defined variable names."""
     gin_utils.parse_gin_flags(
         gin_search_paths=['', '.', '/'],
         gin_files=[file],
-        gin_bindings=[],
+        gin_bindings=gin_bindings,
     )
 
     model = gin.query_parameter('%MODEL').scoped_configurable_fn()
