@@ -16,3 +16,4 @@
 
 from optformer.common.data.featurizers.base import Featurizer
 from optformer.common.data.featurizers.testing import IdentityFeaturizer
+from optformer.common.data.featurizers.testing import PassThroughFeaturizer

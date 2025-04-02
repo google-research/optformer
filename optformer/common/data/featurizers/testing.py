@@ -47,3 +47,21 @@ class IdentityFeaturizer(base.Featurizer[str]):
     for _ in range(self.rank):
       ranked_obj = tf.expand_dims(ranked_obj, 0)
     return {'inputs': ranked_obj, 'targets': ranked_obj}
+
+
+@attrs.define
+class PassThroughFeaturizer(base.Featurizer):
+  """Input is already featurized, just pass it through."""
+
+  ref_featurizer: base.Featurizer = attrs.field(init=True)
+
+  def to_features(self, obj: dict[str, tf.Tensor], /) -> dict[str, tf.Tensor]:
+    return obj
+
+  @property
+  def element_spec(self) -> dict[str, tf.TensorSpec]:
+    return self.ref_featurizer.element_spec
+
+  @property
+  def empty_output(self) -> dict[str, tf.Tensor]:
+    return self.ref_featurizer.empty_output
