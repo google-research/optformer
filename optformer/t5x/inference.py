@@ -15,7 +15,6 @@
 """Inference-related classes and functions."""
 
 import dataclasses
-import functools
 from typing import Generic, Optional, Sequence, TypeVar
 
 import gin
@@ -80,7 +79,6 @@ class InferenceConfig(Generic[_T]):
     )
 
   @classmethod
-  @functools.cache
   def from_gin_file(
       cls,
       file: str,
