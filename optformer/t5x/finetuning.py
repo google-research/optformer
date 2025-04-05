@@ -49,8 +49,8 @@ class Finetuner(Generic[_D]):
   use_early_stop: bool = attrs.field(default=True)
 
   seed: int = attrs.field(default=0)
-  loss_batch_size: int = attrs.field(default=64)  # TPU memory limit
-  batch_per_tpu: Optional[int] = attrs.field(default=4)  # TPU memory limit
+  loss_batch_size: int = attrs.field(default=256)
+  batch_per_tpu: Optional[int] = attrs.field(default=16)  # Varys on hardware.
 
   # Post init fields.
   _num_microbatches: int | None = attrs.field(init=False)
