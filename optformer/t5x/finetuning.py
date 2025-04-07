@@ -49,7 +49,6 @@ class Finetuner(Generic[_D]):
   use_early_stop: bool = attrs.field(default=True)
 
   seed: int = attrs.field(default=0)
-  loss_batch_size: int = attrs.field(default=256)
   batch_per_tpu: Optional[int] = attrs.field(default=16)  # Varys on hardware.
 
   # Post init fields.
@@ -108,10 +107,10 @@ class Finetuner(Generic[_D]):
   def _loss(self, params: models.PyTree, data: Sequence[_D]) -> float:
     """Compute total loss over data."""
     jit_loss_fn = jax.jit(self.model.loss_fn)
-    num_batches = math.ceil(len(data) / self.loss_batch_size)
+    num_batches = math.ceil(len(data) / self.batch_per_tpu)
 
     ds = self.inference_dataset_fn(data)
-    ds = ds.batch(self.loss_batch_size, drop_remainder=False)
+    ds = ds.batch(self.batch_per_tpu, drop_remainder=False)
     data_iter = ds.as_numpy_iterator()
 
     step_losses = []
