@@ -49,7 +49,7 @@ class Finetuner(Generic[_D]):
   use_early_stop: bool = attrs.field(default=True)
 
   seed: int = attrs.field(default=0)
-  batch_per_tpu: Optional[int] = attrs.field(default=16)  # Varys on hardware.
+  batch_per_tpu: Optional[int] = attrs.field(default=4)  # Varies by hardware.
 
   # Post init fields.
   _num_microbatches: int | None = attrs.field(init=False)
@@ -82,6 +82,7 @@ class Finetuner(Generic[_D]):
         valid_losses.append(self._loss(state.params, valid_data))
         if _detect_overfitting(valid_losses):
           logging.info('Early stopping at epoch %d', n_epoch)
+          logging.info('Validation losses: %s', valid_losses)
           return prev_state
 
       prev_state = state
@@ -96,6 +97,8 @@ class Finetuner(Generic[_D]):
             num_microbatches=self._num_microbatches,
         )
 
+    logging.info('Finished all %s epochs.', self.max_num_epochs)
+    logging.info('Validation losses: %s', valid_losses)
     return state
 
   def _make_train_ds(self, data: Sequence[_D]) -> tf.data.Dataset:
