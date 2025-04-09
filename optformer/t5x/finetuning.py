@@ -46,6 +46,7 @@ class Finetuner(Generic[_D]):
   learning_rate: float = attrs.field(default=1e-5)  # 10x lower than training.
   batch_size: int = attrs.field(default=256)  # Should match training.
   max_num_epochs: int = attrs.field(default=30)
+  reset_optimizer_state: bool = attrs.field(default=False)
   use_early_stop: bool = attrs.field(default=True)
 
   seed: int = attrs.field(default=0)
@@ -66,6 +67,12 @@ class Finetuner(Generic[_D]):
       state: train_state_lib.FlaxOptimTrainState,
   ) -> train_state_lib.FlaxOptimTrainState:
     """Finetunes."""
+    if self.reset_optimizer_state:
+      logging.info('Resetting optimizer state and step count.')
+      new_optimizer_state = self.model.optimizer_def.init_state(state.params)
+      new_optimizer = state._optimizer.replace(state=new_optimizer_state)  # pylint: disable=protected-access
+      state = state.replace(_optimizer=new_optimizer)
+
     rng = jax.random.PRNGKey(self.seed)
     jit_train_with_lr = jax.jit(
         trainer_lib.train_with_lr,
