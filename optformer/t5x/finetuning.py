@@ -77,9 +77,9 @@ class Finetuner(Generic[_D]):
     valid_losses = []
     prev_state = state  # Never used.
     for n_epoch in range(self.max_num_epochs):
+      valid_losses.append(self._loss(state.params, valid_data))
 
       if self.use_early_stop:
-        valid_losses.append(self._loss(state.params, valid_data))
         if _detect_overfitting(valid_losses):
           logging.info('Early stopping at epoch %d', n_epoch)
           logging.info('Validation losses: %s', valid_losses)
