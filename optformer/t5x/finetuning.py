@@ -52,6 +52,10 @@ class Finetuner(Generic[_D]):
   seed: int = attrs.field(default=0)
   batch_per_tpu: Optional[int] = attrs.field(default=4)  # Varies by hardware.
 
+  weight_metrics_computer: trainer_lib.WeightMetricsComputer = attrs.field(
+      factory=trainer_lib.WeightMetricsComputer
+  )
+
   # Post init fields.
   _num_microbatches: int | None = attrs.field(init=False)
 
@@ -76,36 +80,45 @@ class Finetuner(Generic[_D]):
     rng = jax.random.PRNGKey(self.seed)
     jit_train_with_lr = jax.jit(
         trainer_lib.train_with_lr,
-        static_argnames=['model', 'num_microbatches'],
+        static_argnames=[
+            'model',
+            'num_microbatches',
+            'weight_metrics_computer',
+        ],
     )
     num_grad_steps_per_epoch = math.ceil(len(train_data) / self.batch_size)
     train_iter = self._make_train_ds(train_data).as_numpy_iterator()
 
     valid_losses = []
-    prev_state = state  # Never used.
-    for n_epoch in range(self.max_num_epochs):
+    stepwise_metrics = []
+    prev_state = state
+    n_epoch = 0
+    while n_epoch < self.max_num_epochs:
       valid_losses.append(self._loss(state.params, valid_data))
 
-      if self.use_early_stop:
-        if _detect_overfitting(valid_losses):
-          logging.info('Early stopping at epoch %d', n_epoch)
-          logging.info('Validation losses: %s', valid_losses)
-          return prev_state
+      if self.use_early_stop and _detect_overfitting(valid_losses):
+        state = prev_state
+        break
 
       prev_state = state
       for _ in range(num_grad_steps_per_epoch):
         rng, subkey = jax.random.split(rng)
-        state, _ = jit_train_with_lr(
+        state, metrics = jit_train_with_lr(
             state,
             next(train_iter),
             learning_rate=jnp.array(self.learning_rate),
             dropout_rng=subkey,
             model=self.model,
             num_microbatches=self._num_microbatches,
+            weight_metrics_computer=self.weight_metrics_computer,
         )
+        stepwise_metrics.append(metrics)
 
-    logging.info('Finished all %s epochs.', self.max_num_epochs)
+      n_epoch += 1
+
+    logging.info('Finetuned for %s epochs.', n_epoch)
     logging.info('Validation losses: %s', valid_losses)
+    logging.info('Stepwise metrics: %s', stepwise_metrics)
     return state
 
   def _make_train_ds(self, data: Sequence[_D]) -> tf.data.Dataset:
