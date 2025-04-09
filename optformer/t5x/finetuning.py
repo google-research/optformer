@@ -67,10 +67,15 @@ class Finetuner(Generic[_D]):
   def finetune(
       self,
       train_data: Sequence[_D],
-      valid_data: Sequence[_D],
+      valid_data: Sequence[_D] | None,
       state: train_state_lib.FlaxOptimTrainState,
   ) -> train_state_lib.FlaxOptimTrainState:
     """Finetunes."""
+
+    if valid_data is None:
+      logging.info('`valid_data` is None, using `train_data` for validation.')
+      valid_data = train_data
+
     if self.reset_optimizer_state:
       logging.info('Resetting optimizer state and step count.')
       new_optimizer_state = self.model.optimizer_def.init_state(state.params)
