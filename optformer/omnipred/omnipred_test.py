@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import jax
 import numpy as np
 from optformer.common.data import vocabs as common_vocabs
 from optformer.omnipred import omnipred
@@ -23,6 +24,8 @@ from optformer.t5x import testing
 from optformer.vizier.data import featurizers
 from vizier import pyvizier as vz
 from absl.testing import absltest
+
+jax.config.update('jax_threefry_partitionable', False)
 
 
 class OmnipredTest(absltest.TestCase):

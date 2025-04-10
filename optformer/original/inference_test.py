@@ -31,6 +31,8 @@ from vizier.testing import test_studies
 from absl.testing import absltest
 from absl.testing import parameterized
 
+jax.config.update("jax_threefry_partitionable", False)
+
 
 class LogitRestrictorsTest(absltest.TestCase):
 
