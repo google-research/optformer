@@ -4,7 +4,8 @@ This folder contains code implementing the OmniPred model.
 ## General Usage
 See `omnipred_test.py` for a setup example.
 
-For regression on your custom object, the idea is to define a custom featurizer which contains the prompt serialization logic:
+For regression on your custom object, the idea is to define a custom featurizer
+which contains the prompt serialization logic:
 
 ```python
 import tensorflow as tf
@@ -12,12 +13,12 @@ from optformer.common.data import featurizers
 from optformer.common.serialization import numeric
 from optformer.omnipred import vocabs
 
-_T = ... # Type of your object
+_InputType = ... # Type of your object
 _DEFAULT_Y_SERIALIZER = numeric.DigitByDigitFloatTokenSerializer()
 
-class MyObjectFeaturizer(featurizers.Featurizer[_T]):
+class MyObjectFeaturizer(featurizers.Featurizer[_InputType]):
 
-  def to_features(self, obj: _T) -> dict[str, tf.Tensor]:
+  def to_features(self, obj: _InputType) -> dict[str, tf.Tensor]:
     inputs: str = ... # Serialize `obj`
     targets: str = _DEFAULT_Y_SERIALIZER.to_str(obj.y_value)
 

@@ -12,7 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Omnipred-specific serializers."""
+"""Vizier specific serializers used in original paper.
+
+To construct featurizer on Vizier studies, simply do:
+
+```
+featurizers.VizierStudyFeaturizer(
+    OmniPredInputsSerializer,
+    OmniPredTargetsSerializer,
+  )
+```
+"""
 
 import attrs
 import gin

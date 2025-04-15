@@ -55,14 +55,14 @@ class _OmniPredLogitRestrictor(decoding.IndexLogitRestrictor):
     return self._logits_masks[index]
 
 
-_T = TypeVar('_T')
+_Example = TypeVar('_Example')
 
 
 @attrs.define
-class OmniPred(Generic[_T]):
+class OmniPred(Generic[_Example]):
   """Predicts tokens representing a float."""
 
-  inference_config: inference.InferenceConfig[_T] = attrs.field()
+  inference_config: inference.InferenceConfig[_Example] = attrs.field()
 
   num_samples: int = attrs.field(default=64, kw_only=True)
   max_inputs_length: int = attrs.field(default=2048, kw_only=True)
@@ -111,7 +111,7 @@ class OmniPred(Generic[_T]):
     )
     return sampled_tokens, aux['scores']
 
-  def predict(self, prompt: _T) -> list[float]:
+  def predict(self, prompt: _Example) -> list[float]:
     """Produce sample float predictions for a given prompt."""
     ds = self._dataset_fn([prompt]).batch(1)
     batch = next(ds.as_numpy_iterator())
@@ -126,5 +126,5 @@ class OmniPred(Generic[_T]):
     return typing.cast(vocabs.FloatMetricVocabulary, vocab)
 
   @property
-  def dataset_fn(self) -> datasets.E2EInferenceDatasetFn[_T]:
+  def dataset_fn(self) -> datasets.E2EInferenceDatasetFn[_Example]:
     return self._dataset_fn
