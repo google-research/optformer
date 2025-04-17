@@ -42,7 +42,11 @@ def main(_):
         )
     )
 
-  server = reverb.Server(tables, port=_REVERB_PORT.value)
+  checkpointer = None
+
+  server = reverb.Server(
+      tables, port=_REVERB_PORT.value, checkpointer=checkpointer
+  )
   server.wait()
 
 
