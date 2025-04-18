@@ -25,7 +25,7 @@ _REVERB_BUFFER_SIZE = flags.DEFINE_integer(
     'reverb_buffer_size', int(10000), 'Reverb buffer size.'
 )
 _REVERB_PORT = flags.DEFINE_integer('reverb_port', None, 'Reverb server port.')
-_USE_CHECKPOINTING = flags.DEFINE_bool('use_checkpointing', False, '')
+_REVERB_CHECKPOINTING = flags.DEFINE_bool('reverb_checkpointing', False, '')
 
 
 def main(_):
@@ -45,8 +45,7 @@ def main(_):
     )
 
   checkpointer = None
-
-  if _USE_CHECKPOINTING.value:
+  if _REVERB_CHECKPOINTING.value:
     checkpointer = checkpointers.default_checkpointer()
 
   server = reverb.Server(
