@@ -17,6 +17,7 @@
 from absl import app
 from absl import flags
 import reverb
+from reverb.platform.default import checkpointers
 import tensorflow_datasets as tfds
 
 
@@ -24,6 +25,7 @@ _REVERB_BUFFER_SIZE = flags.DEFINE_integer(
     'reverb_buffer_size', int(10000), 'Reverb buffer size.'
 )
 _REVERB_PORT = flags.DEFINE_integer('reverb_port', None, 'Reverb server port.')
+_USE_CHECKPOINTING = flags.DEFINE_bool('use_checkpointing', False, '')
 
 
 def main(_):
@@ -43,6 +45,9 @@ def main(_):
     )
 
   checkpointer = None
+
+  if _USE_CHECKPOINTING.value:
+    checkpointer = checkpointers.default_checkpointer()
 
   server = reverb.Server(
       tables, port=_REVERB_PORT.value, checkpointer=checkpointer
