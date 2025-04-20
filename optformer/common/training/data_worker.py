@@ -26,7 +26,7 @@ import tensorflow_datasets as tfds
 def produce_data(
     dataset_fn: seqio.DatasetFnCallable,
     reverb_address: str,
-    sample_probs: Optional[Dict[tfds.Split, float]] = None,
+    sample_probs: Optional[Dict[str, float]] = None,
     shuffle_files: bool = True,
     seed: Optional[int] = None,
 ) -> None:
