@@ -26,6 +26,15 @@ _REVERB_BUFFER_SIZE = flags.DEFINE_integer(
 )
 _REVERB_PORT = flags.DEFINE_integer('reverb_port', None, 'Reverb server port.')
 _REVERB_CHECKPOINTING = flags.DEFINE_bool('reverb_checkpointing', False, '')
+_REVERB_TABLE_TYPE = flags.DEFINE_enum(
+    'reverb_table_type',
+    'uniform',
+    ['uniform', 'queue'],
+    'Reverb table type.  Uniform is non-deterministic insertion and removal. '
+    ' Records may be evicted without being sampled, but are never sampled'
+    ' twice.  Queue is deterministic, records are sampled exactly once and'
+    ' inserts that would overflow the reverb_buffer_size are blocked.',
+)
 
 
 def main(_):
@@ -33,16 +42,28 @@ def main(_):
 
   tables = []
   for table_name in (tfds.Split.TRAIN, tfds.Split.VALIDATION, tfds.Split.TEST):
-    tables.append(
-        reverb.Table(
-            name=table_name,
-            sampler=reverb.selectors.Uniform(),
-            remover=reverb.selectors.Uniform(),
-            max_size=_REVERB_BUFFER_SIZE.value,
-            rate_limiter=reverb.rate_limiters.MinSize(1),
-            max_times_sampled=1,
+    match _REVERB_TABLE_TYPE.value:
+      case 'uniform':
+        tables.append(
+            reverb.Table(
+                name=table_name,
+                sampler=reverb.selectors.Uniform(),
+                remover=reverb.selectors.Uniform(),
+                max_size=_REVERB_BUFFER_SIZE.value,
+                rate_limiter=reverb.rate_limiters.MinSize(1),
+                max_times_sampled=1,
+            )
         )
-    )
+      case 'queue':
+        tables.append(
+            reverb.Table.queue(
+                name=table_name, max_size=_REVERB_BUFFER_SIZE.value
+            )
+        )
+      case _:
+        raise ValueError(
+            f'Unknown reverb_table_type: {_REVERB_TABLE_TYPE.value}'
+        )
 
   checkpointer = None
   if _REVERB_CHECKPOINTING.value:
