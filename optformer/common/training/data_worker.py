@@ -47,9 +47,9 @@ def produce_data(
   """
   if sample_probs is None:
     sample_probs = {
-        tfds.Split.TRAIN: 0.98,
+        tfds.Split.TRAIN: 0.989,
         tfds.Split.VALIDATION: 0.01,
-        tfds.Split.TEST: 0.01,
+        tfds.Split.TEST: 0.001,  # Not used by trainer. Only for visualization.
     }
 
   if seed is None:

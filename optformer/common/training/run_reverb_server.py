@@ -21,11 +21,17 @@ from reverb.platform.default import checkpointers
 import tensorflow_datasets as tfds
 
 
-_REVERB_BUFFER_SIZE = flags.DEFINE_integer(
-    'reverb_buffer_size', int(10000), 'Reverb buffer size.'
+_BUFFER_SIZE = flags.DEFINE_integer(
+    'buffer_size', int(10000), 'Reverb buffer size.'
 )
-_REVERB_PORT = flags.DEFINE_integer('reverb_port', None, 'Reverb server port.')
-_REVERB_CHECKPOINTING = flags.DEFINE_bool('reverb_checkpointing', False, '')
+_PORT = flags.DEFINE_integer('port', None, 'Reverb server port.')
+_CHECKPOINTING = flags.DEFINE_bool('checkpointing', True, 'Checkpoint to disk.')
+_TABLE_TYPE = flags.DEFINE_enum(
+    'table_type',
+    'uniform',
+    ['uniform', 'queue'],
+    'Uniform allows insertion w/ random replacement. Queue blocks when full.',
+)
 
 
 def main(_):
@@ -33,24 +39,29 @@ def main(_):
 
   tables = []
   for table_name in (tfds.Split.TRAIN, tfds.Split.VALIDATION, tfds.Split.TEST):
-    tables.append(
-        reverb.Table(
-            name=table_name,
-            sampler=reverb.selectors.Uniform(),
-            remover=reverb.selectors.Uniform(),
-            max_size=_REVERB_BUFFER_SIZE.value,
-            rate_limiter=reverb.rate_limiters.MinSize(1),
-            max_times_sampled=1,
-        )
-    )
+    if _TABLE_TYPE.value == 'uniform':
+      tables.append(
+          reverb.Table(
+              name=table_name,
+              sampler=reverb.selectors.Uniform(),
+              remover=reverb.selectors.Uniform(),
+              max_size=_BUFFER_SIZE.value,
+              rate_limiter=reverb.rate_limiters.MinSize(1),
+              max_times_sampled=1,
+          )
+      )
+    elif _TABLE_TYPE.value == 'queue':
+      tables.append(
+          reverb.Table.queue(name=table_name, max_size=_BUFFER_SIZE.value)
+      )
+    else:
+      raise ValueError(f'Unknown table type: {_TABLE_TYPE.value}')
 
   checkpointer = None
-  if _REVERB_CHECKPOINTING.value:
+  if _CHECKPOINTING.value:
     checkpointer = checkpointers.default_checkpointer()
 
-  server = reverb.Server(
-      tables, port=_REVERB_PORT.value, checkpointer=checkpointer
-  )
+  server = reverb.Server(tables, port=_PORT.value, checkpointer=checkpointer)
   server.wait()
 
 
