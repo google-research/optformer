@@ -19,6 +19,7 @@ import numpy as np
 from optformer.common.data import filters
 from vizier import pyvizier as vz
 from vizier._src.pyglove import constants
+from vizier._src.pyvizier.shared import parameter_iterators as pi
 from vizier.pyvizier import converters
 
 
@@ -26,7 +27,7 @@ def _validate_parameters(
     parameters: dict[str, vz.ParameterValueTypes], space: vz.SearchSpace
 ) -> bool:
   """Call with parameters=trial.parameters.as_dict()."""
-  builder = vz.SequentialParameterBuilder(space, traverse_order='bfs')
+  builder = pi.SequentialParameterBuilder(space, traverse_order='bfs')
   try:
     for pc in builder:
       builder.choose_value(parameters.pop(pc.name))
