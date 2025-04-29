@@ -58,6 +58,11 @@ def output_features_factory(
         'inputs': seqio.Feature(vocabulary=vocab, add_eos=False),
         'targets': seqio.Feature(vocabulary=vocab, add_eos=True),
     }
+  elif name == 'eos_inputs_only':
+    return {
+        'inputs': seqio.Feature(vocabulary=vocab, add_eos=True),
+        'targets': seqio.Feature(vocabulary=vocab, add_eos=False),
+    }
   else:
     raise ValueError(f'Output feature name {name} not found.')
 
