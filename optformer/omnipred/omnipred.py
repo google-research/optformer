@@ -73,24 +73,29 @@ class OmniPred(Generic[_Example]):
 
   # Determined after init.
   _jit_predict_batch_with_aux = attrs.field(init=False)
+  _jit_score_batch = attrs.field(init=False)
   _dataset_fn = attrs.field(init=False)
 
   def __attrs_post_init__(self):
-    # Setup logit restriction.
-    logit_callback_fn = _OmniPredLogitRestrictor(self._vocab)
+    # Setup and jit logit restriction.
     predict_batch_with_aux = functools.partial(
         self.inference_config.model.predict_batch_with_aux,
         decoder_params={
             'max_decode_steps': self._vocab.decode_length,
-            'logit_callback_fn': logit_callback_fn,
+            'logit_callback_fn': _OmniPredLogitRestrictor(self._vocab),
         },
     )
-
-    # jit the decoding function.
     self._jit_predict_batch_with_aux = jax.jit(
         predict_batch_with_aux,
         static_argnames=['return_all_decodes', 'num_decodes'],
     )
+
+    # Setup and jit the scoring function.
+    score_batch = functools.partial(
+        self.inference_config.model.score_batch,
+        return_intermediates=False,
+    )
+    self._jit_score_batch = jax.jit(score_batch)
 
     # For converting objects to tensors.
     self._dataset_fn = self.inference_config.get_dataset_fn(
@@ -119,6 +124,17 @@ class OmniPred(Generic[_Example]):
     toks, _ = self._sample_tokens(batch)
     toks = jnp.squeeze(toks, axis=0)  # [S, L]
     return [self._vocab.decode_to_object(t) for t in toks]
+
+  def score(self, example: _Example) -> float:
+    """Produce logprobs for a given (x,y) example."""
+    ds = self._dataset_fn([example]).batch(1)
+    batch = next(ds.as_numpy_iterator())
+
+    log_prob = self._jit_score_batch(
+        params=self.inference_config.train_state.params,
+        batch=batch,
+    )
+    return jnp.squeeze(log_prob, axis=0).item()
 
   @property
   def _vocab(self) -> vocabs.FloatMetricVocabulary:
