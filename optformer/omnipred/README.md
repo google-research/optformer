@@ -1,6 +1,8 @@
 # OmniPred: Language Models as Universal Regressors
 This folder contains code implementing the OmniPred model.
 
+**NOTE: Please use https://github.com/google-deepmind/regress-lm instead.**
+
 ## General Usage
 See `omnipred_test.py` for a setup example.
 
