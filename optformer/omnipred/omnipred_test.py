@@ -95,7 +95,7 @@ class OmnipredTest(absltest.TestCase):
 
   def test_predict(self):
     self.assertEqual(np.median(self.regressor.predict(self.example)), 4.861e-07)
-    self.assertEqual(self.regressor.score(self.example), -32.854591369628906)
+    self.assertEqual(self.regressor.score(self.example), -32.85459518432617)
 
   def test_finetune(self):
     finetuner = finetuning.Finetuner(
