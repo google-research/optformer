@@ -18,11 +18,15 @@ from absl import app
 from absl import flags
 import reverb
 from reverb.platform.default import checkpointers
-import tensorflow_datasets as tfds
 
 
 _BUFFER_SIZE = flags.DEFINE_integer(
     'buffer_size', int(10000), 'Reverb buffer size.'
+)
+_TABLE_NAMES = flags.DEFINE_list(
+    'table_names',
+    ['train', 'validation', 'test'],
+    'Names of the tables to create.',
 )
 _PORT = flags.DEFINE_integer('port', None, 'Reverb server port.')
 _CHECKPOINTING = flags.DEFINE_bool('checkpointing', True, 'Checkpoint to disk.')
@@ -38,7 +42,7 @@ def main(_):
   """Creates a Reverb server with multiple tables for collecting data."""
 
   tables = []
-  for table_name in (tfds.Split.TRAIN, tfds.Split.VALIDATION, tfds.Split.TEST):
+  for table_name in _TABLE_NAMES.value:
     if _TABLE_TYPE.value == 'uniform':
       tables.append(
           reverb.Table(
