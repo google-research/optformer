@@ -100,10 +100,10 @@ class MeasurementTokenSerializerTest(parameterized.TestCase):
     with self.assertRaisesRegex(ValueError, "Cannot float-deserialize.*"):
       serializer.from_str("<PENDING>" * n_tokens)
 
-    self.assertEqual(
-        serializer.from_str("<INFEASIBLE>" * n_tokens).metrics["x"],
-        vz.Metric(value=math.nan, std=None),  # <INFEASIBLE> maps to math.nan
-    )
+    # <INFEASIBLE> maps to math.nan
+    infeasible = serializer.from_str("<INFEASIBLE>" * n_tokens).metrics["x"]
+    self.assertTrue(math.isnan(infeasible.value))
+    self.assertIsNone(infeasible.std)
     self.assertEqual(
         serializer.from_str("<MISSING_METRIC>" * n_tokens), vz.Measurement()
     )
