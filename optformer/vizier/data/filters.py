@@ -100,6 +100,21 @@ class SingleMetricOnly(filters.Filter[vz.ProblemAndTrials]):
     return True
 
 
+@attrs.define
+class MaxNumMetricOnly(filters.Filter[vz.ProblemAndTrials]):
+  """Checks if the study has at most `max_num_metrics` objective."""
+
+  _max_num_metrics: int = attrs.field(default=1)
+
+  def __call__(self, study: vz.ProblemAndTrials) -> bool:
+    metric_info = study.problem.metric_information
+    if len(metric_info) > 1:
+      raise ValueError(
+          f'Has {len(metric_info)} > {self._max_num_metrics} metrics.'
+      )
+    return True
+
+
 class FlatSpaceOnly(filters.Filter[vz.ProblemAndTrials]):
   """Checks if the study is flat space."""
 

@@ -148,6 +148,7 @@ class MetricsConfigSerializer(s_lib.Serializer[vz.MetricsConfig]):
   field_mapping: FieldMapping = attrs.field(factory=FieldMapping)
 
   include_metric_name: bool = attrs.field(default=True)
+  include_goal: bool = attrs.field(default=True)
 
   METRIC_INFO_SEPARATOR: str = '@'
 
@@ -155,7 +156,8 @@ class MetricsConfigSerializer(s_lib.Serializer[vz.MetricsConfig]):
     metric_dict = {}
     if self.include_metric_name:
       metric_dict[self.field_mapping.objective_name] = metric_info.name
-    metric_dict[self.field_mapping.goal_name] = metric_info.goal.name
+    if self.include_goal:
+      metric_dict[self.field_mapping.goal_name] = metric_info.goal.name
 
     return self.primitive_serializer.to_str(metric_dict)
 
