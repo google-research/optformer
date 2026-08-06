@@ -168,8 +168,8 @@ def _pareto_argsort(
   else:
     rng = np.random.RandomState(seed)
     ranks = xla_pareto.pareto_rank(labels)
-    sorted_idx = np.argsort(ranks + rng.uniform(0, 1, ranks.shape))
-    return sorted_idx, ranks[sorted_idx]
+    sorted_idx = np.argsort(ranks + rng.uniform(0, 1, ranks.shape))  # pyrefly: ignore[missing-attribute]
+    return sorted_idx, ranks[sorted_idx]  # pyrefly: ignore[bad-index, bad-return]
 
 
 @attrs.define(kw_only=True)

@@ -267,7 +267,7 @@ class InferencerTest(parameterized.TestCase):
 
     # JIT-check and perform inference.
     jit_regress = jax.jit(self.inferencer.regress)
-    dist, full_output = jit_regress(jax_study, index)
+    dist, full_output = jit_regress(jax_study, index)  # pyrefly: ignore[bad-argument-type]
 
     # Check distribution works.
     mean_pred = dist.mean()
