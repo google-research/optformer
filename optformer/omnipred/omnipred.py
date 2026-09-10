@@ -80,7 +80,7 @@ class OmniPred(Generic[_Example]):
     # Setup and jit logit restriction.
     predict_batch_with_aux = functools.partial(
         self.inference_config.model.predict_batch_with_aux,
-        decoder_params={
+        decoder_params={  # pyrefly: ignore[unexpected-keyword]
             'max_decode_steps': self._vocab.decode_length,
             'logit_callback_fn': _OmniPredLogitRestrictor(self._vocab),
         },

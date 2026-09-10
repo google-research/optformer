@@ -28,5 +28,5 @@ def get_train_featurizer() -> featurizers.VizierStudyFeaturizer:
 def get_eval_featurizer() -> featurizers.VizierStudyFeaturizer:
   return featurizers.VizierStudyFeaturizer(
       os_lib.ProblemStudySerializer,
-      lambda: os_lib.QuantizedTrialsSerializer((0.2, 0.8)),
+      lambda: os_lib.QuantizedTrialsSerializer((0.2, 0.8)),  # pyrefly: ignore[bad-argument-type]
   )

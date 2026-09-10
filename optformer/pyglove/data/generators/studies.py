@@ -34,7 +34,7 @@ class SyntheticStudyFactory(generators.SeededFactory[types.PyGloveStudy]):
   experimenter_factories: Sequence[
       generators.SeededFactory[experimenters_lib.PyGloveExperimenter]
   ] = attrs.field(  # pyrefly: ignore[bad-assignment]
-      default=(
+      default=(  # pyrefly: ignore[bad-assignment]
           experimenters.BinomialExperimenterFactory(),
           experimenters.NestedExperimenterFactory(),
           experimenters.PermutationExperimenterFactory(),

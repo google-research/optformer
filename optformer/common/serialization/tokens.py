@@ -92,7 +92,7 @@ class UnitSequenceTokenSerializer(Generic[_V], TokenSerializer[Sequence[_V]]):
   """
 
   token_serializers: Sequence[UnitTokenSerializer[_V]] = attrs.field(  # pyrefly: ignore[bad-assignment]
-      factory=lambda: [IntegerTokenSerializer(), StringTokenSerializer()]
+      factory=lambda: [IntegerTokenSerializer(), StringTokenSerializer()]  # pyrefly: ignore[bad-assignment]
   )
 
   def to_str(self, obj: Sequence[Any], /) -> str:

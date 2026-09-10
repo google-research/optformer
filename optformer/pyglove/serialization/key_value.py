@@ -213,7 +213,7 @@ class DNAKeyValueSerializer(s_lib.Serializer[pg.DNA]):
     # TODO: Consider if we need to change to 'literal' value_types.
     dna_dict = dna.to_dict(key_type='dna_spec', value_type='dna')
     for k, v in dna_dict.items():
-      if not v.children:
+      if not v.children:  # pyrefly: ignore[missing-attribute]
         out[self.keypath_serializer.to_str(k.id)] = v.value  # pyrefly: ignore[missing-attribute]
 
     # TODO: Use a primitive serializer instead of `str()`.

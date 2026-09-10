@@ -149,7 +149,7 @@ class AttentionDecoder(keras.Model):
       sampled_ids = vectorized_sample(probs)
       token_ids[:, i] = np.array(sampled_ids)
 
-    return np.array([self._vocab.from_int(toks) for toks in token_ids])  # pyrefly: ignore[bad-return]
+    return np.array([self._vocab.from_int(toks) for toks in token_ids])  # pyrefly: ignore[bad-argument-type, bad-return]
 
 
 def weighted_sparse_categorical_crossentropy(labels, logits, weights=None):
