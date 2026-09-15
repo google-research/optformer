@@ -84,7 +84,7 @@ class FlaxT5Embedder(nn.Module):
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,
         dtype=cfg.dtype,
-        attend_dtype=jnp.float32,  # for logit training stability
+        attend_dtype=jnp.float32,  # for logit training stability  # pyrefly: ignore[bad-argument-type]
         embedding_init=nn.initializers.normal(stddev=1.0),
         one_hot=False,  # One-hots blow up memory.
         name='token_embedder',
