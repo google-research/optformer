@@ -30,7 +30,7 @@ class GeneratorDatasetFn(base.DatasetFn[_S]):
 
   featurizer: featurizers.Featurizer[_S] = attrs.field(init=True, kw_only=True)
 
-  def __call__(self, source: Iterator[_S]) -> tf.data.Dataset:
+  def __call__(self, source: Iterator[_S]) -> tf.data.Dataset:  # pyrefly: ignore[bad-override]
     def _generator():
       for obj in source:
         yield self.featurizer.to_features(obj)
