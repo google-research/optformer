@@ -36,7 +36,7 @@ class GeneratorDatasetFn(base.DatasetFn[_S]):
         yield self.featurizer.to_features(obj)
 
     return tf.data.Dataset.from_generator(
-        _generator,  # pyrefly: ignore[bad-argument-type]
+        _generator,
         output_types=self.featurizer.output_types,
         output_shapes=self.featurizer.output_shapes,
     )

@@ -32,7 +32,7 @@ class FeaturizedDatasetFnTest(parameterized.TestCase):
     self.featurizer = featurizers.IdentityFeaturizer(rank)
     self.dataset_fn = featurized.FeaturizedDatasetFn(self.featurizer)
 
-    ds = tf.data.Dataset.from_tensor_slices(objs)  # pyrefly: ignore[bad-argument-type]
+    ds = tf.data.Dataset.from_tensor_slices(objs)
     ds = self.dataset_fn(ds)
 
     expected = [self.featurizer.to_features(s) for s in objs]

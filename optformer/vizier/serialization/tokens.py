@@ -45,7 +45,7 @@ class TrialTokenSerializer(s_lib.Serializer[vz.Trial]):
       factory=s_lib.StringTokenSerializer
   )
 
-  order: Literal['xy', 'yx'] = attrs.field(default='xy')  # pytype:disable=annotation-type-mismatch
+  order: Literal['xy', 'yx'] = attrs.field(default='xy')
 
   # ---------------------------------------------------------------------------
   # Special token string values below.

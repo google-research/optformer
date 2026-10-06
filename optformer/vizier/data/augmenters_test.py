@@ -117,7 +117,7 @@ class ObjectiveNormalizerTest(parameterized.TestCase):
     study = vz.ProblemAndTrials(problem, trials=self.trials)
 
     new_study = augmenters.ObjectiveNormalizer().augment_study(study)
-    metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pytype:disable=attribute-error
+    metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pyrefly: ignore[missing-attribute]
     self.assertEqual(metrics, expected)
 
 
@@ -140,7 +140,7 @@ class TrialsSorterTest(parameterized.TestCase):
     study = vz.ProblemAndTrials(problem, trials=self.trials)
 
     new_study = augmenters.TrialsSorter().augment_study(study)
-    metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pytype:disable=attribute-error
+    metrics = [t.final_measurement.metrics['m'].value for t in new_study.trials]  # pyrefly: ignore[missing-attribute]
     self.assertEqual(metrics, expected)
 
 
@@ -192,7 +192,7 @@ class BestTrialOnlyTest(parameterized.TestCase):
 
     new_study = augmenters.BestTrialOnly().augment_study(study)
     self.assertLen(new_study.trials, 1)
-    metric = new_study.trials[0].final_measurement.metrics['m'].value  # pytype:disable=attribute-error
+    metric = new_study.trials[0].final_measurement.metrics['m'].value  # pyrefly: ignore[missing-attribute]
     self.assertEqual(metric, expected)
 
 
@@ -270,7 +270,7 @@ class ConvertToMaximizationProblemTest(absltest.TestCase):
         vz.MetricInformation(name='m2', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
     )
 
-    trial_metrics = study.trials[0].final_measurement.metrics  # pytype:disable=attribute-error
+    trial_metrics = study.trials[0].final_measurement.metrics  # pyrefly: ignore[missing-attribute]
     self.assertEqual(trial_metrics['m1'].value, 1.0)
     self.assertEqual(trial_metrics['m2'].value, -1.0)
 
@@ -304,7 +304,7 @@ class RandomMetricFlipper(absltest.TestCase):
     flipper = augmenters.RandomMetricFlipper(seed=1)
     study = flipper.augment(self.study)
 
-    trial_metrics = study.trials[0].final_measurement.metrics  # pytype:disable=attribute-error
+    trial_metrics = study.trials[0].final_measurement.metrics  # pyrefly: ignore[missing-attribute]
     self.assertEqual(trial_metrics['m1'].value, -1.0)
     self.assertEqual(trial_metrics['m2'].value, -1.0)
 

@@ -104,7 +104,7 @@ class E2EInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
             "targets": max_targets_length,
         },
     )
-    self.__attrs_init__(  # pyrefly: ignore[missing-attribute]
+    self.__attrs_init__(
         featurizer=featurizer, tokenizer_and_converter=tokenizer_and_converter
     )
 
@@ -118,7 +118,7 @@ class E2EInferenceDatasetFn(Generic[_S], base.DatasetFn[Iterable[_S]]):
       tf.Dataset holding a reference to the generator / buffer.
     """
     generator_dataset = tf.data.Dataset.from_generator(
-        lambda: (self.featurizer.to_features(s) for s in source),  # pyrefly: ignore[bad-argument-type]
+        lambda: (self.featurizer.to_features(s) for s in source),
         output_types=self.featurizer.output_types,
         output_shapes=self.featurizer.output_shapes,
     )

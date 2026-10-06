@@ -46,7 +46,7 @@ class VizierToPyGloveExperimenter(base.PyGloveExperimenter):
     self.experimenter.evaluate([vz_trial])
     metric_name = self.problem.single_objective_metric_name
     # TODO: Deal with infeasible trials better.
-    return vz_trial.final_measurement.metrics[metric_name].value  # pytype:disable=attribute-error
+    return vz_trial.final_measurement.metrics[metric_name].value  # pyrefly: ignore[missing-attribute]
 
   def search_space(self) -> pg.DNASpec:
     return self.converter.dna_spec

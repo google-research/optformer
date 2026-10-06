@@ -92,7 +92,7 @@ class LogitRestrictorsTest(absltest.TestCase):
   def test_measurement_logit_restrictor(self):
     m1 = vz.MetricInformation(name="x1", goal=vz.ObjectiveMetricGoal.MAXIMIZE)
     m2 = vz.MetricInformation(name="x2", goal=vz.ObjectiveMetricGoal.MINIMIZE)
-    metrics_config = vz.MetricsConfig(metrics=[m1, m2])  # pyrefly: ignore[unexpected-keyword]
+    metrics_config = vz.MetricsConfig(metrics=[m1, m2])
 
     logit_restrictor = inference._MeasurementLogitRestrictor(
         metrics_config, vocab=self.vocab
@@ -267,7 +267,7 @@ class InferencerTest(parameterized.TestCase):
 
     # JIT-check and perform inference.
     jit_regress = jax.jit(self.inferencer.regress)
-    dist, full_output = jit_regress(jax_study, index)  # pyrefly: ignore[bad-argument-type]
+    dist, full_output = jit_regress(jax_study, index)
 
     # Check distribution works.
     mean_pred = dist.mean()

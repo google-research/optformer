@@ -44,8 +44,8 @@ class _OmniPredLogitRestrictor(decoding.IndexLogitRestrictor):
     logits_masks[0, self.vocab.initial_token_id] = 1.0
 
     # Only turns on index-dependent custom tokens representing floats.
-    for i in range(self.vocab.deserializer.num_tokens_per_obj):  # pytype:disable=attribute-error
-      tokens_used = self.vocab.deserializer.tokens_used(i)  # pytype:disable=attribute-error
+    for i in range(self.vocab.deserializer.num_tokens_per_obj):
+      tokens_used = self.vocab.deserializer.tokens_used(i)
       ids = [self.vocab.extra_token_id(t) for t in tokens_used]
       logits_masks[i + 1, ids] = 1.0
 

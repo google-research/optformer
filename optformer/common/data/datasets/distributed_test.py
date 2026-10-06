@@ -28,7 +28,7 @@ class DistributedDatasetFnTest(absltest.TestCase):
     self.vocab = vocabs.AsciiVocab()
     self.raw_data = [{"inputs": "hi", "targets": "bye"}]
     self.original_dataset = tf.data.Dataset.from_generator(
-        lambda: self.raw_data,  # pyrefly: ignore[bad-argument-type]
+        lambda: self.raw_data,
         output_types={"inputs": tf.string, "targets": tf.string},
         output_shapes={"inputs": [], "targets": []},
     )

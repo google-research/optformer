@@ -91,7 +91,7 @@ class UnitSequenceTokenSerializer(Generic[_V], TokenSerializer[Sequence[_V]]):
   By default, handles integers and strings, e.g. [42, 'x', -1] -> '<42><x><-1>'.
   """
 
-  token_serializers: Sequence[UnitTokenSerializer[_V]] = attrs.field(  # pyrefly: ignore[bad-assignment]
+  token_serializers: Sequence[UnitTokenSerializer[_V]] = attrs.field(
       factory=lambda: [IntegerTokenSerializer(), StringTokenSerializer()]  # pyrefly: ignore[bad-assignment]
   )
 

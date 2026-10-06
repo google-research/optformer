@@ -91,7 +91,7 @@ class QuantizedVizierAlgorithm(base.Algorithm):
         ),
     )
 
-    self.__attrs_init__(  # pyrefly: ignore[missing-attribute]
+    self.__attrs_init__(
         problem=problem,
         inferencer=inferencer,
         inference_dataset_fn=inference_dataset_fn,

@@ -78,14 +78,14 @@ class AttentionDecoder(keras.Model):
 
     self._output_proj = keras.layers.Dense(self._vocab.size)
 
-  def call(self, inputs):  # pytype:disable=signature-mismatch
+  def call(self, inputs):  # pyrefly: ignore[bad-override]
     """Returns probabilities over the next token."""
 
     encoder_input, decoded_ids = inputs  # [B, F] and [B, L]
-    encoded = self._encoder(encoder_input)  # [B, F']  # pyrefly: ignore[not-callable]
+    encoded = self._encoder(encoder_input)  # [B, F']
 
-    encoded = self._enc_proj(encoded)  # [B, D]  # pyrefly: ignore[not-callable]
-    decoded = self._token_emb(decoded_ids)  # [B, L-1, D]  # pyrefly: ignore[not-callable]
+    encoded = self._enc_proj(encoded)  # [B, D]
+    decoded = self._token_emb(decoded_ids)  # [B, L-1, D]
 
     # Add it to the decoded sequence.
     encoded = tf.expand_dims(encoded, axis=1)  # [B, 1, D]
@@ -93,7 +93,7 @@ class AttentionDecoder(keras.Model):
 
     # Add positional embeddings to the decoded sequence
     positions = tf.range(start=0, limit=tf.shape(seq)[1], delta=1)
-    pos_embeddings = self._pos_emb(positions)  # pyrefly: ignore[not-callable]
+    pos_embeddings = self._pos_emb(positions)
     seq += pos_embeddings
 
     # Apply transformer layers.
@@ -104,7 +104,7 @@ class AttentionDecoder(keras.Model):
       seq = layernorm2(out + ffn_out)  # Update seq for the next layer
 
     # Project to logits.
-    return self._output_proj(seq)  # [B, L, V]  # pyrefly: ignore[not-callable]
+    return self._output_proj(seq)  # [B, L, V]
 
   def decode(
       self,

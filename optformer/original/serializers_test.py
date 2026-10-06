@@ -126,7 +126,7 @@ class QuantizedSerializersTest(parameterized.TestCase):
     measurement = self.measurement_serializer.from_str("<502>")
     np.testing.assert_almost_equal(
         measurement.metrics["x1"].value,
-        self.completed_trial.final_measurement.metrics["x1"].value,  # pytype:disable=attribute-error
+        self.completed_trial.final_measurement.metrics["x1"].value,  # pyrefly: ignore[missing-attribute]
     )
 
     # MetricsConfig only allows single objectives.

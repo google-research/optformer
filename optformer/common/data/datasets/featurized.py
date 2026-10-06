@@ -47,10 +47,10 @@ class FeaturizedDatasetFn(base.DatasetFn[tf.data.Dataset]):
       # must also be consistent across all return statements. First output is
       # a bool indicating success.
       try:
-        return (True, *self.featurizer.to_features(s).values())  # pytype: disable=bad-return-type  # py311-upgrade
+        return (True, *self.featurizer.to_features(s).values())  # pyrefly: ignore[bad-return]
       except Exception as e:  # pylint:disable=broad-exception-caught
         logging.exception('Failed to featurize: %s', e)
-        return (False, *self.featurizer.empty_output.values())  # pytype: disable=bad-return-type  # py311-upgrade
+        return (False, *self.featurizer.empty_output.values())  # pyrefly: ignore[bad-return]
 
     t_out = (tf.bool, *self.featurizer.output_types.values())
     ds = ds.map(

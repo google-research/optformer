@@ -167,4 +167,4 @@ class TSPExperimenter(PermutationExperimenter):
     for i in range(self.n - 1):
       distance += np.linalg.norm(self._cities[i] - self._cities[i + 1])
 
-    return -1.0 * distance  # pyrefly: ignore[bad-return]
+    return -1.0 * distance

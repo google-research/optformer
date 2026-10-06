@@ -225,7 +225,7 @@ class T5XTextEmbedder(embedders.Embedder[str]):
     batch_size = len(texts)
 
     ds = tf.data.Dataset.from_generator(
-        lambda: [{'input': t} for t in texts],  # pyrefly: ignore[bad-argument-type]
+        lambda: [{'input': t} for t in texts],
         output_types={'input': tf.string},
         output_shapes={'input': []},
     )
