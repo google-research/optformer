@@ -123,7 +123,7 @@ class OmniPred(Generic[_Example]):
 
     toks, _ = self._sample_tokens(batch)
     toks = jnp.squeeze(toks, axis=0)  # [S, L]
-    return [self._vocab.decode_to_object(t) for t in toks]
+    return [self._vocab.decode_to_object(t) for t in toks]  # pyrefly: ignore[bad-argument-type]
 
   def score(self, example: _Example) -> float:
     """Produce logprobs for a given (x,y) example."""
